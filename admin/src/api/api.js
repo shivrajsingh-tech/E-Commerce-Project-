@@ -5,9 +5,7 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Attach the JWT token (stored after login) to every request.
-// The admin token is kept under "admin_token" in localStorage so it
-// never collides with the customer token used by the frontend.
+// Attach the JWT token to every outgoing request
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("admin_token");
@@ -17,6 +15,17 @@ api.interceptors.request.use(
     return config;
   },
   (error) => Promise.reject(error)
+);
+
+// On 401: clear the stale token silently — don't crash the app
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      localStorage.removeItem("admin_token");
+    }
+    return Promise.reject(error);
+  }
 );
 
 export default api;

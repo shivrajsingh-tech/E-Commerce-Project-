@@ -1,4 +1,3 @@
-
 import {
   createContext,
   useContext,
@@ -11,26 +10,29 @@ import api from "../api/api";
 
 const AuthContext = createContext(null);
 
-// Normalize permission names
 const normalizePermission = (permission) => {
   if (typeof permission !== "string") return "";
-
-  return permission
-    .toLowerCase()
-    .trim()
-    .replace(/[._-]/g, "");
+  return permission.toLowerCase().trim().replace(/[._-]/g, "");
 };
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch latest logged-in user
+  // ── helpers ───────────────────────────────────────────────────────────
+  const hasToken = () => Boolean(localStorage.getItem("admin_token"));
+
+  // ── fetchUser: only runs when a token is present ──────────────────────
   const fetchUser = useCallback(async (showLoading = true) => {
+    // No token → no request, just mark loading done
+    if (!hasToken()) {
+      setUser(null);
+      if (showLoading) setLoading(false);
+      return;
+    }
+
     try {
-      if (showLoading) {
-        setLoading(true);
-      }
+      if (showLoading) setLoading(true);
 
       const response = await api.get("/auth/me");
 
@@ -38,159 +40,120 @@ export const AuthProvider = ({ children }) => {
         const u = response.data.user;
 
         const roleName = (
-          typeof u.role === "string"
-            ? u.role
-            : u.role?.name || ""
+          typeof u.role === "string" ? u.role : u.role?.name || ""
         )
           .toLowerCase()
           .trim()
           .replace(/[\s-]+/g, "_");
 
-        // Customer cannot access admin portal
         if (roleName === "customer") {
+          localStorage.removeItem("admin_token");
           setUser(null);
           return;
         }
 
-        // Latest role permissions first
         const latestPermissions = Array.isArray(u.role?.permissions)
           ? u.role.permissions
           : Array.isArray(u.permissions)
           ? u.permissions
           : [];
 
-        setUser({
-          ...u,
-          permissions: latestPermissions,
-        });
+        setUser({ ...u, permissions: latestPermissions });
       } else {
         setUser(null);
       }
     } catch (error) {
-      // 401 means the token is invalid/expired — clear it so the
-      // interceptor stops sending a stale token on future requests
-      if (error?.response?.status === 401) {
+      if (error?.response?.status === 401 || error?.response?.status === 403) {
+        // Token invalid / expired — wipe it so we stop sending it
         localStorage.removeItem("admin_token");
       }
       setUser(null);
     } finally {
-      if (showLoading) {
-        setLoading(false);
-      }
+      if (showLoading) setLoading(false);
     }
   }, []);
 
-  // Initial user fetch
+  // ── On mount: check session once ─────────────────────────────────────
   useEffect(() => {
     fetchUser(true);
   }, [fetchUser]);
 
-  // Automatically refresh permissions
+  // ── Background refresh: only while a token exists ────────────────────
   useEffect(() => {
-    const refreshUser = () => {
-      if (document.visibilityState === "visible") {
+    const refreshIfNeeded = () => {
+      if (document.visibilityState === "visible" && hasToken()) {
         fetchUser(false);
       }
     };
 
-    document.addEventListener("visibilitychange", refreshUser);
-    window.addEventListener("focus", refreshUser);
+    document.addEventListener("visibilitychange", refreshIfNeeded);
+    window.addEventListener("focus", refreshIfNeeded);
 
+    // Refresh every 10 minutes — only fires if token present
     const interval = setInterval(() => {
-      fetchUser(false);
-    }, 5 * 60 * 1000); // Refresh every 5 minutes (not every 30 seconds)
+      if (hasToken()) fetchUser(false);
+    }, 10 * 60 * 1000);
 
     return () => {
-      document.removeEventListener("visibilitychange", refreshUser);
-      window.removeEventListener("focus", refreshUser);
+      document.removeEventListener("visibilitychange", refreshIfNeeded);
+      window.removeEventListener("focus", refreshIfNeeded);
       clearInterval(interval);
     };
   }, [fetchUser]);
 
-  // Permission checker
+  // ── Permission checker ────────────────────────────────────────────────
   const hasPermission = useCallback(
     (requiredPermission) => {
       if (!user) return false;
 
       const roleName = (
-        typeof user.role === "string"
-          ? user.role
-          : user.role?.name || ""
+        typeof user.role === "string" ? user.role : user.role?.name || ""
       )
         .toLowerCase()
         .trim()
         .replace(/[\s-]+/g, "_");
 
-      // Super Admin bypass
-      if (["super_admin", "superadmin"].includes(roleName)) {
-        return true;
-      }
+      if (["super_admin", "superadmin"].includes(roleName)) return true;
+      if (roleName === "customer") return false;
 
-      // Customer blocked
-      if (roleName === "customer") {
-        return false;
-      }
-
-      // No specific permission required
       if (
         !requiredPermission ||
-        (Array.isArray(requiredPermission) &&
-          requiredPermission.length === 0)
+        (Array.isArray(requiredPermission) && requiredPermission.length === 0)
       ) {
         return true;
       }
 
-      // Latest permissions
       const userPermissions = Array.isArray(user.role?.permissions)
         ? user.role.permissions
         : Array.isArray(user.permissions)
         ? user.permissions
         : [];
 
-      const permissionList = userPermissions.map(
-        normalizePermission
-      );
+      const permissionList = userPermissions.map(normalizePermission);
 
-      const checkSinglePermission = (permission) => {
+      const checkOne = (permission) => {
         const target = normalizePermission(permission);
-
-        if (!target) return false;
-
-        return permissionList.includes(target);
+        return target ? permissionList.includes(target) : false;
       };
 
-      // Multiple permissions: any one is sufficient
-      if (Array.isArray(requiredPermission)) {
-        return requiredPermission.some(checkSinglePermission);
-      }
-
-      return checkSinglePermission(requiredPermission);
+      return Array.isArray(requiredPermission)
+        ? requiredPermission.some(checkOne)
+        : checkOne(requiredPermission);
     },
     [user]
   );
 
   return (
     <AuthContext.Provider
-      value={{
-        user,
-        setUser,
-        loading,
-        hasPermission,
-        refetchUser: fetchUser,
-      }}
+      value={{ user, setUser, loading, hasPermission, refetchUser: fetchUser }}
     >
       {children}
     </AuthContext.Provider>
   );
 };
 
-// Hook
 export const useAuth = () => {
   const context = useContext(AuthContext);
-
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-
+  if (!context) throw new Error("useAuth must be used within an AuthProvider");
   return context;
 };
