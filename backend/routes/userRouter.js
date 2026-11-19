@@ -12,7 +12,9 @@ const {
   getCustomerProfile,
   updateCustomerProfile,
   changeCustomerPassword,
-  customerLogout
+  customerLogout,
+  getThemePreference,
+  updateThemePreference,
 } = require("../controllers/userController");
 
 const {
@@ -36,7 +38,7 @@ router.get("/me", authentication, getMe);
 router.put("/profile", authentication, updateProfile);
 
 router.post("/logout", authentication, (req, res) => {
-  res.clearCookie("token", {
+  res.clearCookie("customer_token", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -115,6 +117,19 @@ router.post(
   "/customerlogout",
   authentication,
   customerLogout
+);
+
+// ================= THEME PREFERENCE =================
+router.get(
+  "/theme",
+  authentication,
+  getThemePreference
+);
+
+router.patch(
+  "/theme",
+  authentication,
+  updateThemePreference
 );
 
 module.exports = router;

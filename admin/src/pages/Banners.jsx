@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import toast from 'react-hot-toast';
+import { confirmToast } from '../components/ConfirmToast';
 import { Plus, Search, Pencil, Trash2, X, Eye, Code, Layout, Image as ImageIcon, Folder } from "lucide-react";
 
 import { CKEditor } from "@ckeditor/ckeditor5-react";
@@ -146,11 +148,11 @@ const Banners = () => {
     if (saving) return;
 
     if (editId && !canUpdate) {
-      alert("Aapke paas banner update karne ki permission nahi hai.");
+      toast.error("You do not have permission to update banners."); return;
       return;
     }
     if (!editId && !canCreate) {
-      alert("Aapke paas banner create karne ki permission nahi hai.");
+      toast.error("You do not have permission to create banners."); return;
       return;
     }
 
@@ -163,15 +165,15 @@ const Banners = () => {
 
       if (editId) {
         await api.put(`/banners/update-banner/${editId}`, payload);
-        alert("Banner updated successfully");
+        toast.success("Banner updated successfully");
       } else {
         await api.post("/banners/add-banner", payload);
-        alert("Banner created successfully");
+        toast.success("Banner created successfully");
       }
       handleCloseForm();
       getBanners();
     } catch (error) {
-      alert(error.response?.data?.message || "Failed to save banner");
+      toast.error(error.response?.data?.message || "Failed to save banner");
     } finally {
       setSaving(false);
     }
@@ -179,21 +181,21 @@ const Banners = () => {
 
   const handleDelete = async (id) => {
     if (!canDelete) {
-      alert("Aapke paas banner delete karne ki permission nahi hai.");
+      toast.error("You do not have permission to delete banners."); return;
       return;
     }
-    if (!window.confirm("Are you sure you want to delete this banner?")) return;
+    const _ok = await confirmToast("Delete this banner?"); if (!_ok) return;
     try {
       await api.delete(`/banners/delete-banner/${id}`);
       getBanners();
     } catch (error) {
-      alert(error.response?.data?.message || "Failed to delete");
+      toast.error(error.response?.data?.message || "Failed to delete banner");
     }
   };
 
   const handleStatusToggle = async (banner) => {
     if (!canChangeStatus) {
-      alert("Aapke paas banner status change karne ki permission nahi hai.");
+      toast.error("You do not have permission to change banner status."); return;
       return;
     }
     const newStatus = banner.status === "active" ? "inactive" : "active";
@@ -203,7 +205,7 @@ const Banners = () => {
       });
       getBanners();
     } catch (error) {
-      alert(error.response?.data?.message || "Status update failed");
+      toast.error(error.response?.data?.message || "Status update failed");
     }
   };
 
@@ -486,10 +488,10 @@ const Banners = () => {
                     onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
                     className="w-full border border-slate-200 rounded-xl p-2.5 text-sm outline-none focus:border-slate-400 focus:ring-4 focus:ring-slate-100 transition-all bg-white cursor-pointer"
                   >
-                    <option value="">🌐 All Categories (Global Store Banner)</option>
+                    <option value="">Ã°Å¸Å’Â All Categories (Global Store Banner)</option>
                     {categoriesList.map((cat) => (
                       <option key={cat._id} value={cat._id}>
-                        📁 {cat.name}
+                        Ã°Å¸â€œÂ {cat.name}
                       </option>
                     ))}
                   </select>

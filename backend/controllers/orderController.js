@@ -489,30 +489,61 @@ const updateOrder = async (req, res) => {
     const { orderStatus, paymentStatus, deliveryAddress } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ success: false, message: "Invalid order ID." });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid order ID.",
+      });
     }
 
     const order = await Order.findById(id);
+
     if (!order) {
-      return res.status(404).json({ success: false, message: "Order not found." });
+      return res.status(404).json({
+        success: false,
+        message: "Order not found.",
+      });
     }
 
-    if (orderStatus) order.orderStatus = orderStatus;
-    if (paymentStatus) order.paymentStatus = paymentStatus;
-    
+    const previousStatus = order.orderStatus;
+
+    if (orderStatus && orderStatus !== previousStatus) {
+      order.orderStatus = orderStatus;
+
+      order.statusHistory.push({
+        status: orderStatus,
+        changedAt: new Date(),
+        reason: `Order status changed from ${previousStatus} to ${orderStatus}`,
+        changedBy: req.user?._id || req.user?.id,
+      });
+
+      // Status ke according timestamp update karo
+      if (orderStatus === "assigned") {
+        order.assignedAt = new Date();
+      }
+
+      if (orderStatus === "out_for_delivery") {
+        order.pickedUpAt = new Date();
+      }
+
+      if (orderStatus === "delivered") {
+        order.deliveredAt = new Date();
+      }
+
+      if (orderStatus === "cancelled") {
+        order.cancelledAt = new Date();
+      }
+    }
+
+    if (paymentStatus) {
+      order.paymentStatus = paymentStatus;
+    }
+
     if (deliveryAddress) {
       order.deliveryAddress = {
         ...order.deliveryAddress,
         ...deliveryAddress,
       };
     }
-
-    order.statusHistory.push({
-      status: orderStatus || order.orderStatus,
-      changedAt: new Date(),
-      reason: "Order details updated by manager/admin",
-      changedBy: req.user?._id || req.user?.id,
-    });
 
     await order.save();
 
@@ -523,6 +554,7 @@ const updateOrder = async (req, res) => {
     });
   } catch (error) {
     console.error("Update order error:", error);
+
     return res.status(400).json({
       success: false,
       message: error.message || "Failed to update order.",

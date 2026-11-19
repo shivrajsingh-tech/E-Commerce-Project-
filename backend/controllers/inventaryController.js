@@ -96,10 +96,11 @@ const addInventory = async (req, res, next) => {
       product,
       variant,
       quantity = 0,
-      reservedQuantity = 0,
       reorderLevel = 0,
       maxStockLevel = 0,
       status = "active",
+      mrp = null,
+      sellingPrice = null,
     } = req.body;
 
     if (
@@ -115,7 +116,6 @@ const addInventory = async (req, res, next) => {
 
     if (
       !isValidStockNumber(quantity) ||
-      !isValidStockNumber(reservedQuantity) ||
       !isValidStockNumber(reorderLevel) ||
       !isValidStockNumber(maxStockLevel)
     ) {
@@ -126,14 +126,8 @@ const addInventory = async (req, res, next) => {
     }
 
     const totalQuantity = Number(quantity);
-    const reserved = Number(reservedQuantity);
-
-    if (reserved > totalQuantity) {
-      return res.status(400).json({
-        success: false,
-        message: "Reserved quantity cannot exceed total quantity",
-      });
-    }
+    // Auto-calculate 20% safety stock reserve — override any manually sent reservedQuantity
+    const reserved = Math.ceil(totalQuantity * 0.20);
 
     if (!["active", "inactive"].includes(status)) {
       return res.status(400).json({
@@ -214,12 +208,12 @@ const addInventory = async (req, res, next) => {
       variant,
       quantity: totalQuantity,
       reservedQuantity: reserved,
-      availableQuantity: totalQuantity - reserved,
       reorderLevel: Number(reorderLevel),
       maxStockLevel: Number(maxStockLevel),
       status,
-      lastRestockedAt:
-        totalQuantity > 0 ? new Date() : null,
+      mrp: mrp !== null ? Number(mrp) : null,
+      sellingPrice: sellingPrice !== null ? Number(sellingPrice) : null,
+      lastRestockedAt: totalQuantity > 0 ? new Date() : null,
     });
 
     const populated = await populateInventory(
@@ -494,10 +488,14 @@ const updateInventory = async (req, res, next) => {
         ? inventory.quantity
         : Number(quantity);
 
+    // If quantity changed, recalculate 20% reserve automatically
+    // If reservedQuantity was explicitly sent in the request, use it (allows manual override)
     const newReserved =
-      reservedQuantity === undefined
-        ? inventory.reservedQuantity
-        : Number(reservedQuantity);
+      reservedQuantity !== undefined
+        ? Number(reservedQuantity)
+        : quantity !== undefined
+        ? Math.ceil(newQuantity * 0.20)
+        : inventory.reservedQuantity;
 
     const newReorderLevel =
       reorderLevel === undefined
@@ -544,7 +542,6 @@ const updateInventory = async (req, res, next) => {
 
     inventory.quantity = newQuantity;
     inventory.reservedQuantity = newReserved;
-    inventory.availableQuantity = newQuantity - newReserved;
     inventory.reorderLevel = newReorderLevel;
     inventory.maxStockLevel = newMaxStockLevel;
 

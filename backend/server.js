@@ -47,12 +47,14 @@ const bannerRouter = require("./routes/bannerRoutes");
 const deliveryRoutes = require("./routes/deliveryRoutes");
 const wishlistRouter = require("./routes/wishlistRoutes"); // 🛠️ Wishlist router yahan import kiya
 const addressRoutes = require("./routes/addressRoutes");
+const cartRoutes = require("./routes/cartRoutes"); 
 
 // ================= ROUTES MOUNT ============
 app.use("/api/auth", authRouter);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/stores", storeRoutes);
 app.use("/api/deliveries", deliveryRoutes);
+
 
 app.use("/api/users", userRouter);
 app.use("/api/user", userRouter);
@@ -73,6 +75,10 @@ app.use("/api/subcategories", subCategoryRouter);
 app.use("/api/products", productRouter);
 app.use("/api/email-templates", emailTemplateRouter);
 app.use("/api/banners", bannerRouter);
+// Apne route file ka sahi path dein
+
+// Cart routes ko mount karein (ensure karein ki prefix wahi ho jo aapki axios base instance mein set hai)
+app.use("/api/cart", cartRoutes);
 
 // 5. Error Middleware (Hamesha sabse aakhir mein aana chahiye)
 const errorMiddleware = require("./middleware/errorMiddleware");

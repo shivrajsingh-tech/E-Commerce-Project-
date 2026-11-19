@@ -1,20 +1,25 @@
+// src/context/wishlistContext.jsx
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useAuth } from "./authContext";
 
 const WishlistContext = createContext();
 const LOCAL_WISHLIST_KEY = "elibcart_guest_wishlist";
+const LOCATION_KEY = "elibcart_location";
 
 export const WishlistProvider = ({ children }) => {
   const { user } = useAuth();
-  const [wishlistIds, setWishlistIds] = useState(new Set());
-  const [wishlistItems, setWishlistItems] = useState([]);
-  const [loading, setLoading] = useState(false);
   const syncDoneRef = useRef(false);
+  const [loading, setLoading] = useState(false);
 
-  // 1. Initial Load: LocalStorage se guest wishlist load karna
+  // 1. Initial state starts empty to match SSR, and hydrates on client mount
+  const [wishlistItems, setWishlistItems] = useState([]);
+  const [wishlistIds, setWishlistIds] = useState(new Set());
+  const [isHydrated, setIsHydrated] = useState(false);
+
   useEffect(() => {
     try {
       const stored = localStorage.getItem(LOCAL_WISHLIST_KEY);
@@ -27,60 +32,102 @@ export const WishlistProvider = ({ children }) => {
       }
     } catch (e) {
       console.error("Local wishlist parse error:", e);
+    } finally {
+      setIsHydrated(true);
     }
   }, []);
 
-  // 2. Database se wishlist fetch karna
+  const saveLocalWishlist = (items) => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem(LOCAL_WISHLIST_KEY, JSON.stringify(items));
+    } catch (e) {
+      console.error("Local wishlist save error:", e);
+    }
+  };
+
+  // 2. Fetch Wishlist from Database for logged-in user
   const fetchWishlist = useCallback(async () => {
-    if (!user) return;
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    if (!user || !token) return;
+
     try {
       setLoading(true);
       const res = await api.get("/wishlist/my-wishlist");
       const list = res.data?.wishlist || res.data?.data || [];
       const validList = Array.isArray(list) ? list : [];
 
-      setWishlistItems(validList);
-      setWishlistIds(new Set(validList.map((item) => String(item._id || item.id || item))));
+      let storeId = null;
+      try {
+        const savedLoc = localStorage.getItem(LOCATION_KEY);
+        if (savedLoc) {
+          const parsed = JSON.parse(savedLoc);
+          storeId = parsed?.store?._id || parsed?.storeId;
+        }
+      } catch (e) {}
+
+      // Refresh product variants/pricing when needed
+      const enhancedList = await Promise.all(
+        validList.map(async (item) => {
+          const prodObj = item.product || item;
+          const prodId = prodObj._id || prodObj.id;
+
+          if (!Array.isArray(prodObj.variants) || prodObj.variants.length === 0) {
+            try {
+              const variantUrl = storeId
+                ? `/product-variants/product/${prodId}?storeId=${storeId}`
+                : `/product-variants/product/${prodId}`;
+
+              const vRes = await api.get(variantUrl);
+              const variants = vRes.data?.variants || [];
+              if (variants.length > 0) {
+                return { ...prodObj, variants };
+              }
+            } catch (err) {
+              // Fallback gracefully
+            }
+          }
+          return prodObj;
+        })
+      );
+
+      setWishlistItems(enhancedList);
+      setWishlistIds(new Set(enhancedList.map((item) => String(item._id || item.id || item))));
     } catch (err) {
-      console.error("Database wishlist fetch failed:", err);
+      if (err.response?.status !== 401) {
+        console.error("Database wishlist fetch failed:", err);
+      }
     } finally {
       setLoading(false);
     }
   }, [user]);
 
-  // 3. AUTO-SYNC: Login hone par Guest Wishlist ko Database me merge karna (With 300ms Delay)
+  // 3. AUTO-SYNC on login: safely merge guest wishlist into database with /wishlist/sync
   useEffect(() => {
     const syncGuestWishlistToDatabase = async () => {
-      if (!user || syncDoneRef.current) return;
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      if (!user || !token || syncDoneRef.current) return;
 
       try {
         const stored = localStorage.getItem(LOCAL_WISHLIST_KEY);
         if (stored) {
           const guestItems = JSON.parse(stored);
           if (Array.isArray(guestItems) && guestItems.length > 0) {
-            // Har ek guest product ko database me push karna
-            for (const item of guestItems) {
-              const productId = String(item._id || item.id || item);
-              try {
-                await api.post("/wishlist/toggle", { productId });
-              } catch (syncErr) {
-                console.error("Sync item error:", syncErr);
-              }
-            }
-            // Sync complete hone par guest storage clean karein
+            const productIds = guestItems.map((item) => String(item._id || item.id || item));
+            await api.post("/wishlist/sync", { productIds });
             localStorage.removeItem(LOCAL_WISHLIST_KEY);
           }
         }
         syncDoneRef.current = true;
-        // Fresh database items fetch karein
         await fetchWishlist();
       } catch (err) {
-        console.error("Wishlist sync error on login:", err);
+        if (err.response?.status !== 401) {
+          console.error("Wishlist sync error on login:", err);
+        }
       }
     };
 
     if (user) {
-      // 🛠️ Cookie/Session ko set hone ka thoda time dene ke liye timeout lagaya hai
       const timer = setTimeout(() => {
         syncGuestWishlistToDatabase();
       }, 300);
@@ -90,39 +137,35 @@ export const WishlistProvider = ({ children }) => {
     }
   }, [user, fetchWishlist]);
 
-  // 4. Toggle Product (Guest = localStorage, Logged-in = API)
+  // 4. Toggle Product in Wishlist
   const toggleWishlist = async (product) => {
     const productId = String(product._id || product.id || product);
     const exists = wishlistIds.has(productId);
 
-    // Instant UI state update
     const nextIds = new Set(wishlistIds);
     let nextItems = [...wishlistItems];
 
     if (exists) {
       nextIds.delete(productId);
       nextItems = nextItems.filter((i) => String(i._id || i.id) !== productId);
+      toast("Removed from wishlist", { icon: "🤍" });
     } else {
       nextIds.add(productId);
       if (typeof product === "object") {
         nextItems.push(product);
       }
+      toast.success("Saved to wishlist!");
     }
 
     setWishlistIds(nextIds);
     setWishlistItems(nextItems);
 
-    // Agar User Logged in nahi hai -> LocalStorage me save karo
-    if (!user) {
-      try {
-        localStorage.setItem(LOCAL_WISHLIST_KEY, JSON.stringify(nextItems));
-      } catch (e) {
-        console.error("Local wishlist save error:", e);
-      }
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    if (!user || !token) {
+      saveLocalWishlist(nextItems);
       return;
     }
 
-    // Agar User Logged in hai -> Database API call
     try {
       await api.post("/wishlist/toggle", { productId });
     } catch (err) {
@@ -140,9 +183,11 @@ export const WishlistProvider = ({ children }) => {
 
     setWishlistIds(nextIds);
     setWishlistItems(nextItems);
+    toast.success("Removed from wishlist");
 
-    if (!user) {
-      localStorage.setItem(LOCAL_WISHLIST_KEY, JSON.stringify(nextItems));
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    if (!user || !token) {
+      saveLocalWishlist(nextItems);
       return;
     }
 
@@ -173,4 +218,10 @@ export const WishlistProvider = ({ children }) => {
   );
 };
 
-export const useWishlist = () => useContext(WishlistContext);
+export const useWishlist = () => {
+  const context = useContext(WishlistContext);
+  if (!context) {
+    throw new Error("useWishlist must be used inside WishlistProvider");
+  }
+  return context;
+};

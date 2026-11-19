@@ -16,6 +16,7 @@ import {
   ArrowRight,
   Shield,
 } from "lucide-react";
+import toast from 'react-hot-toast';
 
 import api from "../api/api";
 import { useAuth } from "../context/AuthContext";
@@ -62,7 +63,7 @@ export default function ForceChangePassword() {
           });
         }
 
-        alert("Password updated successfully! Redirecting...");
+        toast.success("Password updated! Redirecting...");
 
         const rawRole = (
           typeof user?.role === "string"
@@ -306,10 +307,10 @@ export default function ForceChangePassword() {
           <div className="relative z-10 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-violet-200/70 pt-5 text-[10px] font-bold tracking-wide text-slate-500">
             <span className="flex items-center gap-2">
               <Globe2 size={15} className="text-violet-600" />
-              © 2026 ELIBCART
+              Â© 2026 ELIBCART
             </span>
 
-            <span className="text-violet-300">•</span>
+            <span className="text-violet-300">â€¢</span>
 
             <span>ONE PLATFORM. COMPLETE CONTROL.</span>
           </div>

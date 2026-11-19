@@ -9,11 +9,17 @@ import {
 } from "lucide-react";
 import api from "../api/api";
 import toast from "react-hot-toast";
+import { useAuth } from "../context/AuthContext";
 
 const MAX_LOGO_SIZE = 5 * 1024 * 1024;
 const ALLOWED_LOGO_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 const Brand = () => {
+  const { hasPermission } = useAuth();
+  const canCreate       = hasPermission("brands.create");
+  const canUpdate       = hasPermission("brands.update");
+  const canDelete       = hasPermission("brands.delete");
+  const canChangeStatus = hasPermission("brands.status_change");
   const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -233,13 +239,16 @@ const Brand = () => {
           <p className="text-gray-500 text-sm mt-1">Manage product brands</p>
         </div>
 
-        <button
-          onClick={openAddForm}
-          className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-lg hover:bg-indigo-700 transition"
-        >
-          <Plus size={18} />
-          Add Brand
-        </button>
+        {canCreate && (
+          <button
+            type="button"
+            onClick={openAddForm}
+            className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2.5 rounded-xl transition shadow-sm text-sm"
+          >
+            <Plus size={18} />
+            <span>Add Brand</span>
+          </button>
+        )}
       </div>
 
       {/* SEARCH & FILTERS BAR */}
@@ -391,6 +400,7 @@ const Brand = () => {
                     {/* ACTIONS */}
                     <td className="px-6 py-4">
                       <div className="flex justify-end gap-2">
+                        {canUpdate && (
                         <button
                           onClick={() => openEditForm(brand)}
                           className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition"
@@ -398,7 +408,9 @@ const Brand = () => {
                         >
                           <Pencil size={17} />
                         </button>
+                        )}
 
+                        {canChangeStatus && (
                         <button
                           onClick={() => {
                             setSelectedBrand(brand);
@@ -409,7 +421,9 @@ const Brand = () => {
                         >
                           <Power size={17} />
                         </button>
+                        )}
 
+                        {canDelete && (
                         <button
                           onClick={() => {
                             setSelectedBrand(brand);
@@ -420,6 +434,7 @@ const Brand = () => {
                         >
                           <Trash2 size={17} />
                         </button>
+                        )}
                       </div>
                     </td>
                   </tr>

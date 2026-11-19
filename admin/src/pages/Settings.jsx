@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Save, User, Shield, Lock } from "lucide-react";
+import toast from 'react-hot-toast';
 import api from "../api/api";
 
 const Settings = () => {
@@ -85,16 +86,12 @@ const Settings = () => {
       });
 
       if (response.data.success) {
-        alert(
-          response.data.message || "Profile updated successfully"
-        );
+        toast.success(response.data.message || "Profile updated successfully");
 
         await getProfile();
       }
     } catch (error) {
-      alert(
-        error.response?.data?.message || "Failed to update profile"
-      );
+      toast.error(error.response?.data?.message || "Failed to update profile");
     } finally {
       setSaving(false);
     }
@@ -115,12 +112,12 @@ const Settings = () => {
     e.preventDefault();
 
     if (password.newPassword !== password.confirmPassword) {
-      alert("New password and confirm password do not match");
+      toast.error("Passwords do not match"); return;
       return;
     }
 
     if (password.newPassword.length < 6) {
-      alert("New password must be at least 6 characters");
+      toast.error("Password must be at least 6 characters"); return;
       return;
     }
 
@@ -133,9 +130,7 @@ const Settings = () => {
       });
 
       if (response.data.success) {
-        alert(
-          response.data.message || "Password changed successfully"
-        );
+        toast.success(response.data.message || "Password changed successfully");
 
         setPassword({
           currentPassword: "",
@@ -144,9 +139,7 @@ const Settings = () => {
         });
       }
     } catch (error) {
-      alert(
-        error.response?.data?.message || "Failed to change password"
-      );
+      toast.error(error.response?.data?.message || "Failed to change password");
     } finally {
       setChangingPassword(false);
     }

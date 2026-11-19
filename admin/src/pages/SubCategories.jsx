@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from "react";
+import toast from 'react-hot-toast';
 import {
   Plus,
   Search,
@@ -14,8 +15,14 @@ import {
   AlertCircle,
 } from "lucide-react";
 import api from "../api/api";
+import { useAuth } from "../context/AuthContext";
 
 export default function SubCategories() {
+  const { hasPermission } = useAuth();
+  const canCreate       = hasPermission("subcategories.create");
+  const canUpdate       = hasPermission("subcategories.update");
+  const canDelete       = hasPermission("subcategories.delete");
+  const canChangeStatus = hasPermission("subcategories.status_change");
   const [subCategories, setSubCategories] = useState([]);
   const [categories, setCategories] = useState([]);
 
@@ -171,13 +178,13 @@ export default function SubCategories() {
     ];
 
     if (!allowedTypes.includes(file.type)) {
-      alert("Only JPG, PNG and WEBP images are allowed.");
+      toast.error("Only JPG, PNG and WEBP images are allowed."); return;
       e.target.value = "";
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      alert("Image size should not exceed 5MB.");
+      toast.error("Image size should not exceed 5MB."); return;
       e.target.value = "";
       return;
     }
@@ -221,12 +228,12 @@ export default function SubCategories() {
     e.preventDefault();
 
     if (!form.name.trim()) {
-      alert("Please enter subcategory name.");
+      toast.error("Please enter subcategory name."); return;
       return;
     }
 
     if (!form.category) {
-      alert("Please select a category.");
+      toast.error("Please select a category."); return;
       return;
     }
 
@@ -254,10 +261,7 @@ export default function SubCategories() {
     } catch (error) {
       console.error("Save subcategory error:", error);
 
-      alert(
-        error.response?.data?.message ||
-        "Something went wrong while saving subcategory."
-      );
+      toast.error(error.response?.data?.message || "Failed to save subcategory");
     } finally {
       setSaving(false);
     }
@@ -302,10 +306,7 @@ export default function SubCategories() {
     } catch (error) {
       console.error("Status update error:", error);
 
-      alert(
-        error.response?.data?.message ||
-        "Unable to update subcategory status."
-      );
+      toast.error(error.response?.data?.message || "Failed to update status");
     } finally {
       setStatusLoading(false);
     }
@@ -325,10 +326,7 @@ export default function SubCategories() {
     } catch (error) {
       console.error("Delete subcategory error:", error);
 
-      alert(
-        error.response?.data?.message ||
-        "Unable to delete subcategory."
-      );
+      toast.error(error.response?.data?.message || "Failed to delete subcategory");
     } finally {
       setDeleting(false);
     }
@@ -360,6 +358,7 @@ export default function SubCategories() {
           </p>
         </div>
 
+        {canCreate && (
         <button
           onClick={openAddForm}
           className="flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-lg font-medium transition"
@@ -367,6 +366,7 @@ export default function SubCategories() {
           <Plus size={18} />
           Add Sub Category
         </button>
+        )}
       </div>
 
       {/* Search, Filters and Sorting */}
@@ -583,6 +583,7 @@ export default function SubCategories() {
                       <div className="flex items-center justify-center gap-2">
 
                         {/* Edit */}
+                        {canUpdate && (
                         <button
                           onClick={() => openEditForm(subCategory)}
                           title="Edit"
@@ -590,8 +591,10 @@ export default function SubCategories() {
                         >
                           <Pencil size={17} />
                         </button>
+                        )}
 
                         {/* Power - Opens Confirmation Modal */}
+                        {canChangeStatus && (
                         <button
                           onClick={() => openStatusPopup(subCategory)}
                           title={
@@ -603,8 +606,10 @@ export default function SubCategories() {
                         >
                           <Power size={18} />
                         </button>
+                        )}
 
                         {/* Delete */}
+                        {canDelete && (
                         <button
                           onClick={() => setDeleteId(subCategory._id)}
                           title="Delete"
@@ -612,6 +617,7 @@ export default function SubCategories() {
                         >
                           <Trash2 size={17} />
                         </button>
+                        )}
 
                       </div>
                     </td>

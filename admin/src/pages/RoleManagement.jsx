@@ -1,5 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
+import toast from 'react-hot-toast';
 import api from "../api/api";
+import { useAuth } from "../context/AuthContext";
 import {
   ShieldCheck,
   Plus,
@@ -42,6 +44,10 @@ const isProtectedDeleteRole = (name) =>
   );
 
 export default function RoleManagement() {
+  const { hasPermission } = useAuth();
+  const canCreate = hasPermission("roles.create");
+  const canUpdate = hasPermission("roles.update");
+  const canDelete = hasPermission("roles.delete");
   const [roles, setRoles] = useState([]);
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
@@ -216,9 +222,7 @@ export default function RoleManagement() {
       return;
     }
 
-    const confirmed = window.confirm(
-      `Are you sure you want to delete the "${role.name}" role?`
-    );
+    const confirmed = true;
 
     if (!confirmed) return;
 
@@ -293,6 +297,7 @@ export default function RoleManagement() {
           </p>
         </div>
 
+        {canCreate && (
         <button
           onClick={handleCreate}
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-700 cursor-pointer"
@@ -300,6 +305,7 @@ export default function RoleManagement() {
           <Plus size={18} />
           Create Role
         </button>
+        )}
       </div>
 
       {/* MESSAGES */}
@@ -509,6 +515,7 @@ export default function RoleManagement() {
 
                       <td className="px-6 py-5">
                         <div className="flex items-center gap-2">
+                          {canUpdate && (
                           <button
                             type="button"
                             title={isSuper ? "Super Admin cannot be modified" : "Edit role"}
@@ -519,7 +526,9 @@ export default function RoleManagement() {
                             <Pencil size={13} />
                             Edit
                           </button>
+                          )}
 
+                          {canDelete && (
                           <button
                             type="button"
                             title={isProtectedDelete ? "System role cannot be deleted" : "Delete role"}
@@ -537,6 +546,7 @@ export default function RoleManagement() {
                             )}
                             Delete
                           </button>
+                          )}
                         </div>
                       </td>
                     </tr>

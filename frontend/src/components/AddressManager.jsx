@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Plus, Home, Briefcase, MapPin, Check, Trash2, Loader2 } from "lucide-react";
+import toast from "react-hot-toast";
 import api from "@/lib/api";
 
 export default function AddressManager({
@@ -50,7 +51,7 @@ export default function AddressManager({
             }
         } catch (err) {
             console.error("Failed to add address:", err);
-            alert(err.response?.data?.message || "Failed to save address");
+            toast.error(err.response?.data?.message || "Failed to save address");
         } finally {
             setLoading(false);
         }

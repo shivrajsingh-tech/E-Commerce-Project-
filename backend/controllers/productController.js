@@ -119,17 +119,16 @@ const uploadImages = async (files = []) => {
     throw new Error(`Maximum ${MAX_IMAGES} product images are allowed.`);
   }
 
-  const uploadedImages = [];
+  // Upload all images in parallel — much faster than sequential for-loop
+  let uploadedImages = [];
   try {
-    for (const file of files) {
-      const image = await uploadImage(file);
-      uploadedImages.push(image);
-    }
+    uploadedImages = await Promise.all(files.map((file) => uploadImage(file)));
     return uploadedImages;
   } catch (error) {
+    // Clean up any that did succeed before the failure
     await Promise.allSettled(
       uploadedImages.map((image) =>
-        cloudinary.uploader.destroy(image.publicId)
+        image?.publicId ? cloudinary.uploader.destroy(image.publicId) : Promise.resolve()
       )
     );
     throw error;
@@ -156,9 +155,12 @@ const validateProductData = async (data) => {
     throw new Error("Product name cannot exceed 200 characters.");
   }
 
-  const categoryDoc = await validateReference(Category, category, "Category");
-  const subCategoryDoc = await validateReference(SubCategory, subCategory, "Subcategory");
-  await validateReference(Brand, brand, "Brand");
+  // Run all three reference checks in parallel
+  const [categoryDoc, subCategoryDoc] = await Promise.all([
+    validateReference(Category, category, "Category"),
+    validateReference(SubCategory, subCategory, "Subcategory"),
+    validateReference(Brand, brand, "Brand"),
+  ]);
 
   const subCategoryCategoryId =
     subCategoryDoc.category?._id || subCategoryDoc.category;

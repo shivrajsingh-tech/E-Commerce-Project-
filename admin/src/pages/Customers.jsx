@@ -1,4 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
+import toast from 'react-hot-toast';
+import { confirmToast } from '../components/ConfirmToast';
 import {
   Users,
   Search,
@@ -86,7 +88,7 @@ const Customers = () => {
   // Toggle active / inactive status
   const handleToggleStatus = async (cust) => {
     if (!can("customers.status_change")) {
-      alert("Permission denied to change customer status");
+      toast.error("You do not have permission to change customer status."); return;
       return;
     }
     const newStatus = cust.status === "active" ? "inactive" : "active";
@@ -96,7 +98,7 @@ const Customers = () => {
         prev.map((c) => (c._id === cust._id ? { ...c, status: newStatus } : c))
       );
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to update status");
+      toast.error(err.response?.data?.message || "Failed to update status");
     }
   };
 
@@ -139,7 +141,7 @@ const Customers = () => {
       );
       setEditCustomer(null);
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to update customer");
+      toast.error(err.response?.data?.message || "Failed to update customer");
     } finally {
       setEditSaving(false);
     }
@@ -148,15 +150,15 @@ const Customers = () => {
   // Delete customer
   const handleDeleteCustomer = async (id) => {
     if (!can("customers.delete")) {
-      alert("Permission denied");
+      toast.error("You do not have permission."); return;
       return;
     }
-    if (!window.confirm("Are you sure you want to delete this customer?")) return;
+    const _ok = await confirmToast("Delete this customer?"); if (!_ok) return;
     try {
       await api.delete(`/customers/${id}`);
       setCustomers((prev) => prev.filter((c) => c._id !== id));
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to delete customer");
+      toast.error(err.response?.data?.message || "Failed to delete customer");
     }
   };
 
@@ -465,15 +467,15 @@ const Customers = () => {
                           </span>
                         </div>
                         <div className="text-xs text-slate-400">
-                          Placed on: {ord.createdAt ? ord.createdAt.slice(0, 10) : "N/A"} •{" "}
-                          {ord.items?.length || 1} items • {ord.paymentMethod} (
+                          Placed on: {ord.createdAt ? ord.createdAt.slice(0, 10) : "N/A"} Ã¢â‚¬Â¢{" "}
+                          {ord.items?.length || 1} items Ã¢â‚¬Â¢ {ord.paymentMethod} (
                           {ord.paymentStatus})
                         </div>
                       </div>
 
                       <div className="text-right">
                         <div className="text-base font-bold text-slate-900">
-                          ₹{ord.totalAmount?.toLocaleString() || 0}
+                          Ã¢â€šÂ¹{ord.totalAmount?.toLocaleString() || 0}
                         </div>
                       </div>
                     </div>

@@ -1,8 +1,10 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
 import {
+  Sun,
+  Moon,
+  Palette,
   X,
   User,
   MapPin,
@@ -19,6 +21,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { useTheme } from "@/context/themeContext";
 
 export default function AccountSidebar({
   isOpen,
@@ -64,6 +67,9 @@ export default function AccountSidebar({
   const [state, setState] = useState("");
   const [pincode, setPincode] = useState("");
   const [isDefault, setIsDefault] = useState(false);
+
+  // THEME
+  const { theme, setTheme: setThemeCtx } = useTheme();
 
   // SYNC TAB
   useEffect(() => {
@@ -221,9 +227,7 @@ export default function AccountSidebar({
   };
 
   const handleCancelOrder = async (orderId) => {
-    if (!window.confirm("Are you sure you want to cancel this order?")) {
-      return;
-    }
+    
 
     try {
       setCancellingId(orderId);
@@ -490,8 +494,6 @@ export default function AccountSidebar({
   const handleDeleteAddress = async (id) => {
     if (defaultUpdatingId || deletingAddressId) return;
 
-    if (!window.confirm("Delete this address?")) return;
-
     try {
       setDeletingAddressId(id);
 
@@ -641,12 +643,13 @@ export default function AccountSidebar({
         </div>
 
         {/* NAVIGATION */}
-        <div className="shrink-0 grid grid-cols-4 border-b border-slate-100 bg-slate-100 p-1.5 text-[11px] font-bold text-slate-600">
+        <div className="shrink-0 grid grid-cols-5 border-b border-slate-100 bg-slate-100 p-1.5 text-[11px] font-bold text-slate-600">
           {[
             { id: "profile", label: "Profile", icon: User },
             { id: "security", label: "Security", icon: ShieldCheck },
             { id: "orders", label: "Orders", icon: Package },
             { id: "addresses", label: "Address", icon: MapPin },
+            { id: "theme", label: "Theme", icon: Palette },
           ].map((tab) => {
             const Icon = tab.icon;
 
@@ -868,7 +871,7 @@ export default function AccountSidebar({
                         </div>
 
                         <p className="text-xs text-slate-500 font-medium">
-                          {ord.items?.length || 1} items • ₹
+                          {ord.items?.length || 1} items &bull; &#x20B9;
                           {Number(ord.totalAmount || 0).toLocaleString("en-IN")}
                         </p>
 
@@ -1334,6 +1337,94 @@ export default function AccountSidebar({
               )}
             </div>
           )}
+
+          {/* THEME */}
+          {activeTab === "theme" && (
+            <div className="space-y-4">
+              {/* Header card */}
+              <div className="rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 p-5 text-white">
+                <div className="flex items-center gap-2 mb-1">
+                  <Palette size={18} />
+                  <h3 className="text-sm font-black">Appearance</h3>
+                </div>
+                <p className="text-xs text-violet-200">
+                  Your theme is saved to your account and applied everywhere.
+                </p>
+              </div>
+
+              {/* Light / Dark options */}
+              {[
+                {
+                  id: "light",
+                  label: "Light Mode",
+                  desc: "Clean white interface — great for daytime.",
+                  icon: Sun,
+                  preview: "from-slate-100 to-white",
+                  barColor: "bg-slate-300",
+                },
+                {
+                  id: "dark",
+                  label: "Dark Mode",
+                  desc: "Easy on the eyes — perfect for night-time.",
+                  icon: Moon,
+                  preview: "from-slate-800 to-slate-950",
+                  barColor: "bg-white/20",
+                },
+              ].map((opt) => {
+                const Icon = opt.icon;
+                const isActive = theme === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setThemeCtx(opt.id)}
+                    className={`w-full text-left rounded-2xl border-2 overflow-hidden transition-all cursor-pointer ${
+                      isActive ? "border-violet-500 shadow-md" : "border-slate-200 hover:border-violet-300"
+                    }`}
+                  >
+                    {/* Preview strip */}
+                    <div className={`h-10 w-full bg-gradient-to-r ${opt.preview} flex items-center justify-end px-4 gap-2`}>
+                      {[32, 24, 16].map((w, i) => (
+                        <div key={i} className={`h-1.5 rounded-full ${opt.barColor}`} style={{ width: w }} />
+                      ))}
+                    </div>
+                    {/* Info row */}
+                    <div className="flex items-center gap-3 p-3.5 bg-white">
+                      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${opt.id === "light" ? "bg-amber-100 text-amber-600" : "bg-indigo-900 text-indigo-300"}`}>
+                        <Icon size={17} />
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold ${isActive ? "text-violet-700" : "text-slate-800"}`}>{opt.label}</p>
+                        <p className="text-[10px] text-slate-500">{opt.desc}</p>
+                      </div>
+                      <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-all ${isActive ? "border-violet-600 bg-violet-600" : "border-slate-300"}`}>
+                        {isActive && <Check size={12} strokeWidth={3} className="text-white" />}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+
+              {/* Quick toggle */}
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4">
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Quick toggle</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    Currently: <span className="font-bold text-violet-700 capitalize">{theme} mode</span>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setThemeCtx(theme === "light" ? "dark" : "light")}
+                  className="theme-toggle"
+                  aria-label="Toggle theme"
+                >
+                  <span className="theme-toggle-knob" />
+                </button>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
     </div>

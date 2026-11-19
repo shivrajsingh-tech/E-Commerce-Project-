@@ -32,13 +32,7 @@ export const AuthProvider = ({ children }) => {
         setLoading(true);
       }
 
-      let response;
-
-      try {
-        response = await api.get("/auth/me");
-      } catch {
-        response = await api.get("/users/me");
-      }
+      const response = await api.get("/auth/me");
 
       if (response?.data?.success && response?.data?.user) {
         const u = response.data.user;
@@ -73,7 +67,11 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
       }
     } catch (error) {
-      console.error("Fetch user error:", error);
+      // 401 means the token is invalid/expired — clear it so the
+      // interceptor stops sending a stale token on future requests
+      if (error?.response?.status === 401) {
+        localStorage.removeItem("admin_token");
+      }
       setUser(null);
     } finally {
       if (showLoading) {
@@ -100,7 +98,7 @@ export const AuthProvider = ({ children }) => {
 
     const interval = setInterval(() => {
       fetchUser(false);
-    }, 30000);
+    }, 5 * 60 * 1000); // Refresh every 5 minutes (not every 30 seconds)
 
     return () => {
       document.removeEventListener("visibilitychange", refreshUser);

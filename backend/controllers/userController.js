@@ -115,7 +115,7 @@ const createUser = async (req, res) => {
     }
 
     const temporaryPassword = crypto.randomBytes(4).toString("hex") + "!Aa1";
-    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+ const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
 
     const assignedPermissions =
       Array.isArray(permissions) && permissions.length > 0
@@ -130,7 +130,7 @@ const createUser = async (req, res) => {
       phone: phone?.trim() || "",
       role: roleDoc._id,
       permissions: assignedPermissions,
-      password: hashedPassword,
+      password:  hashedPassword ,
       status: "pending",
       mustChangePassword: true,
     });
@@ -394,7 +394,7 @@ const login = async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    res.cookie("token", token, {
+    res.cookie("customer_token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -457,6 +457,14 @@ const getUsers = async (req, res) => {
 
     if (role) filter.role = role;
     if (status) filter.status = status;
+
+    // Exclude super_admin users from listing
+    const superAdminRole = await Role.findOne({ name: "super_admin" }).select("_id");
+    if (superAdminRole) {
+      filter.role = filter.role
+        ? { $eq: filter.role, $ne: superAdminRole._id }
+        : { $ne: superAdminRole._id };
+    }
 
     const allowedSort = ["firstName", "lastName", "email", "status", "createdAt"];
     const safeSort = allowedSort.includes(sortBy) ? sortBy : "createdAt";
@@ -742,6 +750,7 @@ const deleteUser = async (req, res) => {
 };
 
 // ==========================================
+// ==========================================
 // CUSTOMER PROFILE
 // ==========================================
 const getCustomerProfile = async (req, res) => {
@@ -750,10 +759,23 @@ const getCustomerProfile = async (req, res) => {
       .select("-password -resetOtp -resetOtpExpires -__v")
       .populate("role", "name");
 
-    if (!user || user.role?.name?.toLowerCase() !== "customer") {
+    if (!user) {
       return res.status(404).json({
         success: false,
-        message: "Customer not found",
+        message: "User not found",
+      });
+    }
+
+    // Read role from the DB-populated role document (always accurate)
+    const roleName = (user.role?.name || "")
+      .toLowerCase()
+      .trim()
+      .replace(/[\s-]+/g, "_");
+
+    if (roleName !== "customer") {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. This endpoint is for customers only.",
       });
     }
 
@@ -788,12 +810,18 @@ const updateCustomerProfile = async (req, res) => {
 
     const user = await User.findById(req.user.id || req.user._id)
       .populate("role", "name");
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
 
-    if (!user || user.role?.name?.toLowerCase() !== "customer") {
-      return res.status(404).json({
-        success: false,
-        message: "Customer not found",
-      });
+    // Guard: only the logged-in customer can update their own profile
+    const roleName = (user.role?.name || "")
+      .toLowerCase()
+      .trim()
+      .replace(/[\s-]+/g, "_");
+
+    if (roleName !== "customer") {
+      return res.status(403).json({ success: false, message: "Access denied. This endpoint is for customers only." });
     }
 
     if (name !== undefined) {
@@ -881,10 +909,23 @@ const changeCustomerPassword = async (req, res) => {
     const user = await User.findById(req.user.id || req.user._id)
       .populate("role", "name");
 
-    if (!user || user.role?.name?.toLowerCase() !== "customer") {
+    if (!user) {
       return res.status(404).json({
         success: false,
-        message: "Customer not found",
+        message: "User not found",
+      });
+    }
+
+    // Guard: only customers can use this endpoint
+    const roleName = (user.role?.name || "")
+      .toLowerCase()
+      .trim()
+      .replace(/[\s-]+/g, "_");
+
+    if (roleName !== "customer") {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. This endpoint is for customers only.",
       });
     }
 
@@ -920,7 +961,7 @@ const changeCustomerPassword = async (req, res) => {
 // CUSTOMER LOGOUT
 // ==========================================
 const customerLogout = async (req, res) => {
-  res.clearCookie("token", {
+  res.clearCookie("customer_token", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -931,6 +972,41 @@ const customerLogout = async (req, res) => {
     success: true,
     message: "Logout successful",
   });
+};
+
+// ==========================================
+// GET / UPDATE THEME PREFERENCE (Customer)
+// ==========================================
+const getThemePreference = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id || req.user._id).select("theme");
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    return res.status(200).json({ success: true, theme: user.theme || "light" });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Failed to fetch theme" });
+  }
+};
+
+const updateThemePreference = async (req, res) => {
+  try {
+    const { theme } = req.body;
+    if (!["light", "dark"].includes(theme)) {
+      return res.status(400).json({ success: false, message: "Invalid theme value" });
+    }
+    const user = await User.findByIdAndUpdate(
+      req.user.id || req.user._id,
+      { $set: { theme } },
+      { new: true, select: "theme" }
+    );
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    return res.status(200).json({ success: true, theme: user.theme });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Failed to update theme" });
+  }
 };
 
 module.exports = {
@@ -946,4 +1022,6 @@ module.exports = {
   updateCustomerProfile,
   changeCustomerPassword,
   customerLogout,
+  getThemePreference,
+  updateThemePreference,
 };

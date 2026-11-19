@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion, useMotionValue, useSpring } from "framer-motion";
 import {
@@ -175,21 +175,7 @@ const Login = () => {
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
 
-  useEffect(() => {
-    try {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      sessionStorage.clear();
-
-      if (typeof setUser === "function") {
-        setUser(null);
-      }
-    } catch (error) {
-      console.error("Cleanup error:", error);
-    }
-  }, [setUser]);
-
-  const handleMouseMove = (e) => {
+const handleMouseMove = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
 
     mouseX.set(((e.clientX - rect.left) / rect.width - 0.5) * 14);
@@ -254,6 +240,11 @@ const Login = () => {
           "Access denied. Customer accounts cannot log in to the management panel."
         );
         return;
+      }
+
+      // Store token so the axios interceptor can attach it to every request
+      if (data?.token) {
+        localStorage.setItem("admin_token", data.token);
       }
 
       if (typeof setUser === "function") {

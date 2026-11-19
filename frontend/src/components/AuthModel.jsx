@@ -42,12 +42,11 @@ export default function AuthModal({
 
     useEffect(() => {
         if (isOpen) {
-            setMode(initialMode);
             setError("");
             setMessage("");
             setShowPassword(false);
         }
-    }, [isOpen, initialMode]);
+    }, [isOpen]);
 
     if (!isOpen) {
         return null;
@@ -106,6 +105,23 @@ export default function AuthModal({
                 throw new Error(
                     "Login succeeded, but user information was not found in the response."
                 );
+            }
+
+            const rawRole =
+                typeof userData.role === "string"
+                    ? userData.role
+                    : userData.role?.name || "";
+
+            const role = String(rawRole)
+                .trim()
+                .toLowerCase()
+                .replace(/[\s-]+/g, "_");
+
+            if (role !== "customer") {
+                setError(
+                    "Access Restricted: Only accounts with the 'customer' role are allowed to log in here."
+                );
+                return;
             }
 
             login(userData, token);
@@ -478,12 +494,12 @@ export default function AuthModal({
                             mode === "login"
                                 ? handleLogin
                                 : mode === "signup"
-                                  ? handleSignup
-                                  : mode === "forgot"
-                                    ? handleForgotPassword
-                                    : mode === "verify"
-                                      ? handleVerifyOtp
-                                      : handleResetPassword
+                                    ? handleSignup
+                                    : mode === "forgot"
+                                        ? handleForgotPassword
+                                        : mode === "verify"
+                                            ? handleVerifyOtp
+                                            : handleResetPassword
                         }
                         className="mt-6 space-y-5"
                     >

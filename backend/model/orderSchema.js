@@ -163,6 +163,15 @@ const orderSchema = new mongoose.Schema(
       type: Date,
       default: () => new Date(Date.now() + 25 * 60 * 1000),
     },
+    assignedAt: {
+  type: Date,
+  default: null,
+},
+
+pickedUpAt: {
+  type: Date,
+  default: null,
+},
   },
   { timestamps: true }
 );

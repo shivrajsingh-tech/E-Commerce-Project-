@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import toast from 'react-hot-toast';
 import api from "../api/api";
 import { useAuth } from "../context/AuthContext";
 import { Bike, Power, PackageCheck, Loader2, ShieldAlert } from "lucide-react";
@@ -75,7 +76,7 @@ export default function DeliveryTasks() {
         }
       }
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to toggle duty");
+      toast.error(err.response?.data?.message || "Failed to toggle duty");
     } finally {
       setDutyLoading(false);
     }
@@ -98,7 +99,7 @@ export default function DeliveryTasks() {
         await loadRiderData();
       }
     } catch (err) {
-      alert(err.response?.data?.message || "Pickup error");
+      toast.error(err.response?.data?.message || "Pickup failed");
     } finally {
       setLoading(false);
     }
@@ -108,7 +109,7 @@ export default function DeliveryTasks() {
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     if (!isActualDeliveryBoy) {
-      alert("Only assigned delivery partners can verify OTP.");
+      toast.error("Only assigned delivery partners can verify OTP.");
       return;
     }
 
@@ -124,13 +125,13 @@ export default function DeliveryTasks() {
       });
 
       if (res.data?.success) {
-        alert("Order delivered successfully!");
+        toast.success("Order delivered successfully!");
         setOtp("");
         setActiveTask(null);
         await loadRiderData();
       }
     } catch (err) {
-      alert(err.response?.data?.message || "Incorrect OTP");
+      toast.error(err.response?.data?.message || "Incorrect OTP");
     } finally {
       setLoading(false);
     }
@@ -162,9 +163,9 @@ export default function DeliveryTasks() {
             <p className="text-xs text-slate-500">
               {isActualDeliveryBoy
                 ? isOnline
-                  ? "🟢 You are Online & ready for deliveries"
-                  : "🔴 You are currently Offline"
-                : "Super Admin View — Only actual rider can perform pickup & verify OTP."}
+                  ? "ðŸŸ¢ You are Online & ready for deliveries"
+                  : "ðŸ”´ You are currently Offline"
+                : "Super Admin View â€” Only actual rider can perform pickup & verify OTP."}
             </p>
           </div>
         </div>

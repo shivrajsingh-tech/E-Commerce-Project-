@@ -4,6 +4,63 @@ const User = require("../model/userSchema");
 const Role = require("../model/roleSchema");
 const { sendemail } = require("../utils/mailer");
 
+
+const admin_signup = async (req, res, next) => {
+  try {
+    const { firstName, lastName, name, email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: "Email and password are required" });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const check = await User.findOne({ email: normalizedEmail });
+    if (check) {
+      return res.status(400).json({ success: false, message: "Email already exists" });
+    }
+
+    // Only one super_admin allowed
+    const superAdminRole = await Role.findOne({ name: "super_admin" });
+    if (!superAdminRole) {
+      return res.status(500).json({ success: false, message: "super_admin role not seeded. Run role seeder first." });
+    }
+
+    const existingSuper = await User.findOne({ role: superAdminRole._id });
+    if (existingSuper) {
+      return res.status(400).json({ success: false, message: "Super admin already exists" });
+    }
+
+    let fName = (firstName || "").trim();
+    let lName = (lastName || "").trim();
+    if (!fName && name) {
+      const parts = String(name).trim().split(/\s+/);
+      fName = parts[0] || "";
+      lName = parts.slice(1).join(" ");
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = await User.create({
+      firstName: fName || "Super",
+      lastName: lName || "Admin",
+      email: normalizedEmail,
+      password: hashedPassword,
+      role: superAdminRole._id,
+      status: "active",
+      mustChangePassword: false,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Super admin created successfully",
+      user: { id: user._id, email: user.email, role: "super_admin" }
+    });
+
+  } catch (err) {
+    next(err);
+  }
+};
+
 // 1. SIGNUP (Customer)
 const signup = async (req, res, next) => {
   try {
@@ -104,7 +161,7 @@ const login = async (req, res, next) => {
 
     const user = await User.findOne({
       email: email.toLowerCase().trim(),
-    }).populate("role");
+    }).populate("role", "name permissions status");
 
     if (!user) {
       return res.status(401).json({
@@ -128,7 +185,21 @@ const login = async (req, res, next) => {
       });
     }
 
-    const roleName = (user.role?.name || user.role || "").toLowerCase();
+    const roleName = (user.role?.name || "").toLowerCase().trim().replace(/[\s-]+/g, "_");
+
+    if (!roleName) {
+      return res.status(403).json({
+        success: false,
+        message: "No valid role assigned to this account. Contact an administrator.",
+      });
+    }
+
+    if (user.role?.status === "inactive") {
+      return res.status(403).json({
+        success: false,
+        message: "Your assigned role is inactive. Contact an administrator.",
+      });
+    }
 
     if (roleName === "customer") {
       return res.status(403).json({
@@ -148,7 +219,7 @@ const login = async (req, res, next) => {
     const effectivePermissions =
       Array.isArray(user.permissions) && user.permissions.length > 0
         ? user.permissions
-        : user.role?.permissions || [];
+        : Array.isArray(user.role?.permissions) ? user.role.permissions : [];
 
     const token = jwt.sign(
       {
@@ -159,7 +230,7 @@ const login = async (req, res, next) => {
       { expiresIn: "1d" }
     );
 
-    res.cookie("token", token, {
+    res.cookie("admin_token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -171,6 +242,7 @@ const login = async (req, res, next) => {
       message: "Login successful",
       token,
       mustChangePassword: Boolean(user.mustChangePassword),
+
       user: {
         id: user._id,
         _id: user._id,
@@ -292,7 +364,7 @@ const firstTimeChangePassword = async (req, res, next) => {
 // 5. LOGOUT
 const logout = async (req, res, next) => {
   try {
-    res.clearCookie("token", {
+    res.clearCookie("admin_token", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -486,4 +558,5 @@ module.exports = {
   updateProfile,
   changePassword,
   firstTimeChangePassword,
+  admin_signup
 };

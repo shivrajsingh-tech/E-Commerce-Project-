@@ -8,9 +8,16 @@ import {
     CheckCircle,
     XCircle,
 } from "lucide-react";
+import toast from 'react-hot-toast';
 import api from "../api/api";
+import { useAuth } from "../context/AuthContext";
 
 const Categories = () => {
+    const { hasPermission } = useAuth();
+    const canCreate       = hasPermission("categories.create");
+    const canUpdate       = hasPermission("categories.update");
+    const canDelete       = hasPermission("categories.delete");
+    const canChangeStatus = hasPermission("categories.status_change");
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -160,9 +167,7 @@ const Categories = () => {
                 setPage(1);
             }
         } catch (error) {
-            alert(
-                error.response?.data?.message || "Failed to save category"
-            );
+            toast.error(error.response?.data?.message || "Failed to save category");
         } finally {
             setSubmitting(false);
         }
@@ -179,9 +184,7 @@ const Categories = () => {
             });
             await getCategories();
         } catch (error) {
-            alert(
-                error.response?.data?.message || "Failed to change category status"
-            );
+            toast.error(error.response?.data?.message || "Failed to change status");
         }
     };
 
@@ -197,9 +200,7 @@ const Categories = () => {
                 await getCategories();
             }
         } catch (error) {
-            alert(
-                error.response?.data?.message || "Failed to delete category"
-            );
+            toast.error(error.response?.data?.message || "Failed to delete category");
         }
     };
 
@@ -214,6 +215,7 @@ const Categories = () => {
                     </p>
                 </div>
 
+                {canCreate && (
                 <button
                     onClick={handleAdd}
                     className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-lg hover:bg-indigo-700 transition"
@@ -221,6 +223,7 @@ const Categories = () => {
                     <Plus size={18} />
                     Add Category
                 </button>
+                )}
             </div>
 
             {/* SEARCH & FILTERS CONTROLS */}
@@ -376,6 +379,7 @@ const Categories = () => {
 
                                         <td className="px-6 py-4">
                                             <div className="flex justify-end gap-2">
+                                                {canUpdate && (
                                                 <button
                                                     onClick={() => handleEdit(category)}
                                                     className="p-2 rounded-lg text-indigo-600 hover:bg-indigo-50"
@@ -383,7 +387,9 @@ const Categories = () => {
                                                 >
                                                     <Pencil size={17} />
                                                 </button>
+                                                )}
 
+                                                {canChangeStatus && (
                                                 <button
                                                     onClick={() => handleStatusChange(category)}
                                                     className={`p-2 rounded-lg ${
@@ -399,7 +405,9 @@ const Categories = () => {
                                                         <CheckCircle size={17} />
                                                     )}
                                                 </button>
+                                                )}
 
+                                                {canDelete && (
                                                 <button
                                                     onClick={() => setDeleteId(category._id)}
                                                     className="p-2 rounded-lg text-red-600 hover:bg-red-50"
@@ -407,6 +415,7 @@ const Categories = () => {
                                                 >
                                                     <Trash2 size={17} />
                                                 </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

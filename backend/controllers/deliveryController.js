@@ -1,3 +1,4 @@
+
 const Order = require("../model/orderSchema");
 const DeliveryPartner = require("../model/deliveryPartnerSchema");
 const User = require("../model/userSchema");
@@ -10,7 +11,9 @@ const generateNumericOtp = () => {
   return Math.floor(1000 + Math.random() * 9000).toString();
 };
 
+// ========================================================
 // 1. GET NEARBY AVAILABLE PARTNERS
+// ========================================================
 const getNearbyAvailablePartners = async (req, res) => {
   try {
     const partners = await DeliveryPartner.find({
@@ -34,6 +37,7 @@ const getNearbyAvailablePartners = async (req, res) => {
         if (p.status && p.status !== "active") return false;
 
         let roleName = "";
+
         if (typeof p.user.role === "string") {
           roleName = p.user.role;
         } else {
@@ -48,7 +52,7 @@ const getNearbyAvailablePartners = async (req, res) => {
         return roleName === "delivery_partner";
       })
       .map((p) => ({
-        _id: p.user._id, // User ID for assignment reference
+        _id: p.user._id,
         partnerProfileId: p._id,
         firstName: p.user.firstName || "Rider",
         lastName: p.user.lastName || "",
@@ -68,6 +72,7 @@ const getNearbyAvailablePartners = async (req, res) => {
     });
   } catch (error) {
     console.error("getNearbyAvailablePartners Error:", error);
+
     return res.status(500).json({
       success: false,
       message: error.message,
@@ -75,7 +80,9 @@ const getNearbyAvailablePartners = async (req, res) => {
   }
 };
 
-// 2. ASSIGN DELIVERY PARTNER & SEND CKEDITOR TEMPLATE EMAIL
+// ========================================================
+// 2. ASSIGN DELIVERY PARTNER & SEND OTP EMAIL
+// ========================================================
 const assignDeliveryPartner = async (req, res) => {
   try {
     const { orderId, deliveryPartnerId } = req.body;
@@ -84,16 +91,27 @@ const assignDeliveryPartner = async (req, res) => {
       "user",
       "email firstName lastName phone"
     );
+
     if (!order) {
-      return res.status(404).json({ success: false, message: "Order nahi mila." });
+      return res.status(404).json({
+        success: false,
+        message: "Order nahi mila.",
+      });
     }
 
-    // Handle both User ID or Partner Profile ID lookup securely
+    // Find partner using User ID or Partner Profile ID
     let partnerProfile = await DeliveryPartner.findOne({
-      $or: [{ user: deliveryPartnerId }, { _id: deliveryPartnerId }],
+      $or: [
+        { user: deliveryPartnerId },
+        { _id: deliveryPartnerId },
+      ],
     }).populate("user", "firstName lastName phone");
 
-    if (!partnerProfile || !partnerProfile.isOnline || !partnerProfile.isAvailable) {
+    if (
+      !partnerProfile ||
+      !partnerProfile.isOnline ||
+      !partnerProfile.isAvailable
+    ) {
       return res.status(400).json({
         success: false,
         message: "Delivery partner abhi offline ya busy hai.",
@@ -102,20 +120,33 @@ const assignDeliveryPartner = async (req, res) => {
 
     const secureOtp = generateNumericOtp();
 
-    // Assign the User ID linked to the delivery partner profile for order tracking
+    // Assign delivery partner
     order.deliveryPartner = partnerProfile.user._id;
     order.orderStatus = "assigned";
     order.deliveryOtp = secureOtp;
     order.assignedAt = new Date();
+
+    // ADD STATUS HISTORY
+    order.statusHistory.push({
+      status: "assigned",
+      changedAt: new Date(),
+      reason: "Delivery partner assigned",
+      changedBy: req.user?._id || req.user?.id,
+    });
+
     await order.save();
 
+    // Make partner unavailable
     partnerProfile.isAvailable = false;
     await partnerProfile.save();
 
     await User.findByIdAndUpdate(partnerProfile.user._id, {
-      $set: { isAvailable: false },
+      $set: {
+        isAvailable: false,
+      },
     });
 
+    // Customer details
     const customerEmail =
       order.deliveryAddress?.email ||
       order.user?.email ||
@@ -126,14 +157,17 @@ const assignDeliveryPartner = async (req, res) => {
       order.user?.firstName ||
       "Customer";
 
+    // Rider details
     const riderName = `${partnerProfile.user?.firstName || "Delivery Partner"} ${
       partnerProfile.user?.lastName || ""
     }`.trim();
+
     const riderPhone = partnerProfile.user?.phone || "N/A";
     const vehicleType = partnerProfile.vehicleType || "bike";
     const vehicleNumber = partnerProfile.vehicleNumber || "N/A";
     const displayOrderId = order.orderId || String(order._id).slice(-6);
 
+    // Send OTP email
     if (customerEmail) {
       try {
         const template = await EmailTemplate.findOne({
@@ -149,6 +183,7 @@ const assignDeliveryPartner = async (req, res) => {
 
         if (template && (template.body || template.content)) {
           const rawTemplate = template.body || template.content;
+
           const replacePlaceholders = (text) =>
             text
               .replace(/{{\s*customerName\s*}}/gi, customerName)
@@ -159,14 +194,22 @@ const assignDeliveryPartner = async (req, res) => {
               .replace(/{{\s*vehicleType\s*}}/gi, vehicleType)
               .replace(/{{\s*vehicleNumber\s*}}/gi, vehicleNumber);
 
-          emailSubject = replacePlaceholders(template.subject || emailSubject);
+          emailSubject = replacePlaceholders(
+            template.subject || emailSubject
+          );
+
           emailHtml = replacePlaceholders(rawTemplate);
         } else {
           emailHtml = `
             <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
               <h2>Order Out for Delivery!</h2>
-              <p>Hi ${customerName}, your delivery partner is <strong>${riderName}</strong> (${riderPhone}).</p>
-              <h1 style="color: #4f46e5; letter-spacing: 5px;">${secureOtp}</h1>
+              <p>
+                Hi ${customerName}, your delivery partner is
+                <strong>${riderName}</strong> (${riderPhone}).
+              </p>
+              <h1 style="color: #4f46e5; letter-spacing: 5px;">
+                ${secureOtp}
+              </h1>
               <p>Give this OTP to the rider upon receiving your package.</p>
             </div>
           `;
@@ -178,30 +221,46 @@ const assignDeliveryPartner = async (req, res) => {
           html: emailHtml,
         });
       } catch (mailErr) {
-        console.error("Failed to send delivery OTP email:", mailErr.message);
+        console.error(
+          "Failed to send delivery OTP email:",
+          mailErr.message
+        );
       }
     }
 
     return res.status(200).json({
       success: true,
-      message: "Delivery partner assigned successfully and OTP sent to customer!",
+      message:
+        "Delivery partner assigned successfully and OTP sent to customer!",
       orderStatus: order.orderStatus,
     });
   } catch (error) {
     console.error("assignDeliveryPartner Error:", error);
-    return res.status(500).json({ success: false, message: error.message });
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
+// ========================================================
 // 3. TOGGLE DUTY STATUS
+// ========================================================
 const toggleDutyStatus = async (req, res) => {
   try {
     const userId = req.user?.id || req.user?._id;
+
     if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
     }
 
-    let partnerProfile = await DeliveryPartner.findOne({ user: userId });
+    let partnerProfile = await DeliveryPartner.findOne({
+      user: userId,
+    });
 
     if (!partnerProfile) {
       partnerProfile = await DeliveryPartner.create({
@@ -214,8 +273,10 @@ const toggleDutyStatus = async (req, res) => {
     }
 
     const nextOnlineState = !partnerProfile.isOnline;
+
     partnerProfile.isOnline = nextOnlineState;
     partnerProfile.isAvailable = nextOnlineState ? true : false;
+
     await partnerProfile.save();
 
     await User.findByIdAndUpdate(userId, {
@@ -233,31 +294,55 @@ const toggleDutyStatus = async (req, res) => {
     });
   } catch (error) {
     console.error("toggleDutyStatus Error:", error);
-    return res.status(500).json({ success: false, message: error.message });
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
-// 4. MARK PICKED UP
+// ========================================================
+// 4. MARK PICKED UP - OUT FOR DELIVERY
+// ========================================================
 const markPickedUp = async (req, res) => {
   try {
     const partnerId = req.user?.id || req.user?._id;
     const { orderId } = req.body;
 
     if (!orderId) {
-      return res.status(400).json({ success: false, message: "Order ID is required" });
+      return res.status(400).json({
+        success: false,
+        message: "Order ID is required",
+      });
     }
 
     const order = await Order.findOne({
-      $or: [{ _id: orderId }, { orderId: orderId }],
+      $or: [
+        { _id: orderId },
+        { orderId: orderId },
+      ],
       deliveryPartner: partnerId,
     });
 
     if (!order) {
-      return res.status(404).json({ success: false, message: "Order nahi mila." });
+      return res.status(404).json({
+        success: false,
+        message: "Order nahi mila.",
+      });
     }
 
     order.orderStatus = "out_for_delivery";
     order.pickedUpAt = new Date();
+
+    // ADD STATUS HISTORY
+    order.statusHistory.push({
+      status: "out_for_delivery",
+      changedAt: new Date(),
+      reason: "Order picked up by delivery partner",
+      changedBy: partnerId,
+    });
+
     await order.save();
 
     return res.status(200).json({
@@ -266,29 +351,43 @@ const markPickedUp = async (req, res) => {
       orderStatus: order.orderStatus,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    console.error("markPickedUp Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
+// ========================================================
 // 5. VERIFY OTP AND DELIVER
+// ========================================================
 const verifyOtpAndDeliver = async (req, res) => {
   try {
     const partnerId = req.user?.id || req.user?._id;
     const { orderId, otp } = req.body;
 
     const order = await Order.findOne({
-      $or: [{ _id: orderId }, { orderId: orderId }],
+      $or: [
+        { _id: orderId },
+        { orderId: orderId },
+      ],
       deliveryPartner: partnerId,
     });
 
     if (!order) {
-      return res.status(404).json({ success: false, message: "Order nahi mila." });
+      return res.status(404).json({
+        success: false,
+        message: "Order nahi mila.",
+      });
     }
 
     if (String(order.deliveryOtp) !== String(otp).trim()) {
       return res.status(400).json({
         success: false,
-        message: "Invalid OTP. Customer se check karke sahi OTP enter karein.",
+        message:
+          "Invalid OTP. Customer se check karke sahi OTP enter karein.",
       });
     }
 
@@ -296,19 +395,36 @@ const verifyOtpAndDeliver = async (req, res) => {
     order.paymentStatus = "SUCCESS";
     order.deliveredAt = new Date();
     order.deliveryOtp = null;
-    // ⚠️ Note: order.deliveryPartner ko null mat karo taaki history me rider ka naam dikhta rahe!
+
+    // ADD STATUS HISTORY
+    order.statusHistory.push({
+      status: "delivered",
+      changedAt: new Date(),
+      reason: "Order successfully delivered after OTP verification",
+      changedBy: partnerId,
+    });
+
+    // Keep deliveryPartner saved for order history
     await order.save();
 
+    // Make partner available again
     await DeliveryPartner.findOneAndUpdate(
       { user: partnerId },
       {
-        $set: { isAvailable: true },
-        $inc: { totalDeliveries: 1, totalEarnings: Number(order.deliveryFee || 40) },
+        $set: {
+          isAvailable: true,
+        },
+        $inc: {
+          totalDeliveries: 1,
+          totalEarnings: Number(order.deliveryFee || 40),
+        },
       }
     );
 
     await User.findByIdAndUpdate(partnerId, {
-      $set: { isAvailable: true },
+      $set: {
+        isAvailable: true,
+      },
     });
 
     return res.status(200).json({
@@ -317,10 +433,18 @@ const verifyOtpAndDeliver = async (req, res) => {
       orderStatus: order.orderStatus,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    console.error("verifyOtpAndDeliver Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
+// ========================================================
+// EXPORTS
+// ========================================================
 module.exports = {
   getNearbyAvailablePartners,
   assignDeliveryPartner,

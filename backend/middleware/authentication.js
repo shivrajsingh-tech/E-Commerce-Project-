@@ -3,12 +3,11 @@ const User = require("../model/userSchema");
 
 const authentication = async (req, res, next) => {
   try {
-    let token = req.cookies?.token;
+    let token = null;
 
-    // Check Authorization header: Bearer <token>
-    if (!token && req.headers?.authorization) {
+    // 1. Authorization header (works for both apps and API clients)
+    if (req.headers?.authorization) {
       const parts = req.headers.authorization.split(" ");
-
       if (parts.length === 2 && parts[0] === "Bearer") {
         token = parts[1];
       } else {
@@ -16,9 +15,16 @@ const authentication = async (req, res, next) => {
       }
     }
 
-    // Check custom token header
+    // 2. Custom token header
     if (!token && req.headers?.token) {
       token = req.headers.token;
+    }
+
+    // 3. Named cookies — admin_token (admin panel, port 5173)
+    //    and customer_token (customer frontend, port 3000) are separate
+    //    cookies so they never collide even though both run on localhost.
+    if (!token) {
+      token = req.cookies?.admin_token || req.cookies?.customer_token || null;
     }
 
     if (!token) {

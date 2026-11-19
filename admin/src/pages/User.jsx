@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import toast from 'react-hot-toast';
 import {
   Users as UsersIcon,
   Search,
@@ -156,7 +157,7 @@ const User = () => {
         }
       );
     } catch (error) {
-      alert(error.response?.data?.message || "Failed to fetch users");
+      toast.error(error.response?.data?.message || "Failed to fetch users");
     } finally {
       setLoading(false);
     }
@@ -350,7 +351,7 @@ const User = () => {
       }
 
       if (response.data?.success) {
-        alert(response.data.message);
+        toast.success(response.data.message);
         setShowForm(false);
         resetForm();
 
@@ -361,7 +362,7 @@ const User = () => {
         }
       }
     } catch (error) {
-      alert(error.response?.data?.message || "Something went wrong");
+      toast.error(error.response?.data?.message || "Something went wrong");
     } finally {
       setSubmitting(false);
     }
@@ -390,7 +391,7 @@ const User = () => {
         await getUsers();
       }
     } catch (error) {
-      alert(error.response?.data?.message || "Failed to change user status");
+      toast.error(error.response?.data?.message || "Failed to change user status");
     }
   };
 
@@ -408,7 +409,7 @@ const User = () => {
         await getUsers();
       }
     } catch (error) {
-      alert(error.response?.data?.message || "Failed to delete user");
+      toast.error(error.response?.data?.message || "Failed to delete user");
     }
   };
 
@@ -1031,7 +1032,7 @@ const User = () => {
                     <option value="">Select Welcome Template</option>
                     {templates.map((tpl) => (
                       <option key={tpl._id} value={tpl._id}>
-                        {tpl.name} — {tpl.subject}
+                        {tpl.name} â€” {tpl.subject}
                       </option>
                     ))}
                   </select>

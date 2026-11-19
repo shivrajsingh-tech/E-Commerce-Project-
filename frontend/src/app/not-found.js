@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { Home, SearchX } from "lucide-react";
 
+export const metadata = {
+  title: "Page Not Found | ElibCart",
+};
+
 export default function NotFound() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
@@ -20,11 +24,11 @@ export default function NotFound() {
         </p>
 
         <Link
-          href="/dashboard"
+          href="/"
           className="mt-6 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-700"
         >
           <Home size={17} />
-          Go to dashboard
+          Back to Home
         </Link>
       </div>
     </main>

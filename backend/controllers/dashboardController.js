@@ -1,4 +1,5 @@
 const User = require("../model/userSchema");
+const Role = require("../model/roleSchema");
 const Category = require("../model/CategorySchema");
 const SubCategory = require("../model/SubCategorySchema");
 const Brand = require("../model/brandSchema");
@@ -78,10 +79,10 @@ const getDashboard = async (req, res, next) => {
       ]);
 
       const earningsToday = todayOrders.reduce(
-        (sum, o) => sum + (Number(o.deliveryFee) || 40),
+        (sum, o) => sum + (Number(o.deliveryFee) || 0),
         0
       );
-      const totalEarningsAllTime = partnerProfile?.totalEarnings || (deliveredTotalAllTime * 40);
+      const totalEarningsAllTime = partnerProfile?.totalEarnings || 0;
 
       data.deliveryPartnerStats = {
         totalAssignedAllTime,
@@ -119,8 +120,17 @@ const getDashboard = async (req, res, next) => {
     const storeFilter = userRole === "store_manager" && managedStore ? { store: managedStore._id } : {};
 
     // Parallel DB Aggregations for High Speed
+    // Exclude super_admin from all user counts
+    const [superAdminRole] = await Promise.all([
+      Role.findOne({ name: "super_admin" }).select("_id"),
+    ]);
+    const superAdminRoleId = superAdminRole?._id;
+    const excludeSuperAdmin = superAdminRoleId
+      ? { role: { $ne: superAdminRoleId } }
+      : {};
+
     const [
-      // Users
+      // Users (super_admin excluded)
       totalUsers,
       activeUsers,
       inactiveUsers,
@@ -142,6 +152,7 @@ const getDashboard = async (req, res, next) => {
       // Orders Pipeline
       placedOrders,
       confirmedOrders,
+      packingOrders,
       assignedOrders,
       outForDelivery,
       todayDelivered,
@@ -153,10 +164,10 @@ const getDashboard = async (req, res, next) => {
       availableRiders,
       busyRiders,
     ] = await Promise.all([
-      User.countDocuments(),
-      User.countDocuments({ status: "active" }),
-      User.countDocuments({ status: "inactive" }),
-      User.countDocuments({ status: "pending" }),
+      User.countDocuments(excludeSuperAdmin),
+      User.countDocuments({ ...excludeSuperAdmin, status: "active" }),
+      User.countDocuments({ ...excludeSuperAdmin, status: "inactive" }),
+      User.countDocuments({ ...excludeSuperAdmin, status: "pending" }),
 
       Store.countDocuments(),
       Store.countDocuments({ status: "active" }),
@@ -166,12 +177,18 @@ const getDashboard = async (req, res, next) => {
       StoreInventory.countDocuments({
         ...storeFilter,
         status: "active",
-        availableQuantity: { $gt: 0 },
-        $expr: { $lte: ["$availableQuantity", "$reorderLevel"] },
+        $expr: {
+          $and: [
+            { $gt: [{ $subtract: ["$quantity", "$reservedQuantity"] }, 0] },
+            { $lte: [{ $subtract: ["$quantity", "$reservedQuantity"] }, "$reorderLevel"] },
+          ],
+        },
       }),
       StoreInventory.countDocuments({
         ...storeFilter,
-        availableQuantity: { $lte: 0 },
+        $expr: {
+          $lte: [{ $subtract: ["$quantity", "$reservedQuantity"] }, 0],
+        },
       }),
 
       Category.countDocuments({ isDeleted: false }),
@@ -182,6 +199,7 @@ const getDashboard = async (req, res, next) => {
 
       Order.countDocuments({ ...storeFilter, orderStatus: "placed" }),
       Order.countDocuments({ ...storeFilter, orderStatus: "confirmed" }),
+      Order.countDocuments({ ...storeFilter, orderStatus: "packing" }),
       Order.countDocuments({ ...storeFilter, orderStatus: "assigned" }),
       Order.countDocuments({ ...storeFilter, orderStatus: "out_for_delivery" }),
       Order.countDocuments({
@@ -253,6 +271,7 @@ const getDashboard = async (req, res, next) => {
 
       placedOrders,
       confirmedOrders,
+      packingOrders,
       assignedOrders,
       outForDelivery,
       todayDelivered,

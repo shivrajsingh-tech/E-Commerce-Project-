@@ -1,4 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
+import toast from 'react-hot-toast';
+import { confirmToast } from '../components/ConfirmToast';
 import {
   ShoppingBag,
   Search,
@@ -89,7 +91,7 @@ const Orders = () => {
   // Handle direct status change via backend PATCH /api/orders/:id/status
   const handleStatusChange = async (orderId, newStatus) => {
     if (!can("orders.status_change")) {
-      alert("Permission denied to change order status");
+      toast.error("You do not have permission to change order status."); return;
       return;
     }
     try {
@@ -98,22 +100,22 @@ const Orders = () => {
         prev.map((o) => (o._id === orderId ? { ...o, orderStatus: newStatus } : o))
       );
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to update order status");
+      toast.error(err.response?.data?.message || "Failed to update order status");
     }
   };
 
   // Handle Delete Order
   const handleDeleteOrder = async (orderId) => {
     if (!can("orders.delete")) {
-      alert("Permission denied");
+      toast.error("You do not have permission."); return;
       return;
     }
-    if (!window.confirm("Are you sure you want to delete this order?")) return;
+    const _ok = await confirmToast("Delete this order?"); if (!_ok) return;
     try {
       await api.delete(`/orders/${orderId}`);
       setOrders((prev) => prev.filter((o) => o._id !== orderId));
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to delete order");
+      toast.error(err.response?.data?.message || "Failed to delete order");
     }
   };
 
@@ -275,7 +277,7 @@ const Orders = () => {
                       </td>
 
                       <td className="py-3.5 px-5 font-bold text-slate-900">
-                        ₹{ord.totalAmount?.toLocaleString() || 0}
+                        Ã¢â€šÂ¹{ord.totalAmount?.toLocaleString() || 0}
                         <span className="text-xs text-slate-400 font-normal ml-1">
                           ({ord.items?.length || 1} items)
                         </span>

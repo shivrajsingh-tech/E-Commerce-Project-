@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import toast from 'react-hot-toast';
+import { confirmToast } from '../components/ConfirmToast';
 import { Plus, Search, Pencil, Trash2, X, Eye, Code, Layout } from "lucide-react";
 
 import { CKEditor } from "@ckeditor/ckeditor5-react";
@@ -16,6 +18,7 @@ import {
 
 import "ckeditor5/ckeditor5.css";
 import api from "../api/api";
+import { useAuth } from "../context/AuthContext";
 
 const emptyForm = {
   name: "",
@@ -58,6 +61,11 @@ const ActionTooltip = ({ text, children, position = "top" }) => {
 };
 
 const EmailTemplates = () => {
+  const { hasPermission } = useAuth();
+  const canCreate       = hasPermission("email_templates.create");
+  const canUpdate       = hasPermission("email_templates.update");
+  const canDelete       = hasPermission("email_templates.delete");
+  const canChangeStatus = hasPermission("email_templates.status_change");
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -128,27 +136,27 @@ const EmailTemplates = () => {
       setSaving(true);
       if (editId) {
         await api.put(`/email-templates/update-email-template/${editId}`, form);
-        alert("Template updated successfully");
+        toast.success("Template updated successfully");
       } else {
         await api.post("/email-templates/add-email-template", form);
-        alert("Template created successfully");
+        toast.success("Template created successfully");
       }
       handleCloseForm();
       getTemplates();
     } catch (error) {
-      alert(error.response?.data?.message || "Failed to save template");
+      toast.error(error.response?.data?.message || "Failed to save template");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this template?")) return;
+    const _ok = await confirmToast("Delete this template?"); if (!_ok) return;
     try {
       await api.delete(`/email-templates/delete-email-template/${id}`);
       getTemplates();
     } catch (error) {
-      alert(error.response?.data?.message || "Failed to delete");
+      toast.error(error.response?.data?.message || "Failed to delete template");
     }
   };
 
@@ -160,7 +168,7 @@ const EmailTemplates = () => {
       });
       getTemplates();
     } catch (error) {
-      alert(error.response?.data?.message || "Status update failed");
+      toast.error(error.response?.data?.message || "Status update failed");
     }
   };
 
@@ -179,6 +187,7 @@ const EmailTemplates = () => {
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Email Templates</h1>
           <p className="text-sm text-slate-500 mt-1">Design, edit, and organize clean email workflows</p>
         </div>
+        {canCreate && (
         <ActionTooltip text="Create a new template" position="bottom">
           <button
             type="button"
@@ -188,6 +197,7 @@ const EmailTemplates = () => {
             <Plus size={18} /> Add Template
           </button>
         </ActionTooltip>
+        )}
       </div>
 
       {/* SEARCH & FILTERS */}
@@ -274,6 +284,7 @@ const EmailTemplates = () => {
                     <td className="px-6 py-4 text-slate-600 truncate max-w-xs">{tpl.subject}</td>
                     <td className="px-6 py-4">
                       <ActionTooltip text={`Set to ${tpl.status === "active" ? "inactive" : "active"}`}>
+                        {canChangeStatus ? (
                         <button
                           type="button"
                           onClick={() => handleStatusToggle(tpl)}
@@ -285,6 +296,11 @@ const EmailTemplates = () => {
                         >
                           {tpl.status || "inactive"}
                         </button>
+                        ) : (
+                        <span className={`px-3 py-1 rounded-full text-xs font-normal ${tpl.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                          {tpl.status || "inactive"}
+                        </span>
+                        )}
                       </ActionTooltip>
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -298,6 +314,7 @@ const EmailTemplates = () => {
                             <Eye size={17} />
                           </button>
                         </ActionTooltip>
+                        {canUpdate && (
                         <ActionTooltip text="Edit">
                           <button
                             type="button"
@@ -307,6 +324,8 @@ const EmailTemplates = () => {
                             <Pencil size={17} />
                           </button>
                         </ActionTooltip>
+                        )}
+                        {canDelete && (
                         <ActionTooltip text="Delete">
                           <button
                             type="button"
@@ -316,6 +335,7 @@ const EmailTemplates = () => {
                             <Trash2 size={17} />
                           </button>
                         </ActionTooltip>
+                        )}
                       </div>
                     </td>
                   </tr>

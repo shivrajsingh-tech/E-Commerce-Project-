@@ -15,8 +15,13 @@ import {
   MapPin,
 } from "lucide-react";
 import api from "../api/api";
+import { useAuth } from "../context/AuthContext";
 
 export default function DeliveryAssign() {
+  const { hasPermission } = useAuth();
+  const canAssign = hasPermission("deliveries.assign");
+  const canUpdate = hasPermission("orders.update");
+  const canDelete = hasPermission("orders.delete");
   const [orders, setOrders] = useState([]);
   const [activeRiders, setActiveRiders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -291,7 +296,6 @@ export default function DeliveryAssign() {
                 </tr>
               ) : (
                 orders.map((ord) => {
-                  // Fixed rider name fallback resolution for delivered/assigned orders
                   const riderName =
                     ord.deliveryPartner?.firstName ||
                     ord.deliveryPartner?.user?.firstName ||
@@ -356,8 +360,7 @@ export default function DeliveryAssign() {
 
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {/* 1. ASSIGN / RE-ASSIGN RIDER BUTTON */}
-                          {ord.orderStatus !== "delivered" && ord.orderStatus !== "cancelled" && (
+                          {canAssign && ord.orderStatus !== "delivered" && ord.orderStatus !== "cancelled" && (
                             <button
                               type="button"
                               onClick={() => {
@@ -372,25 +375,27 @@ export default function DeliveryAssign() {
                             </button>
                           )}
 
-                          {/* 2. EDIT / UPDATE BUTTON */}
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(ord)}
-                            className="p-2 hover:bg-slate-100 text-slate-600 rounded-xl transition cursor-pointer border border-transparent hover:border-slate-200"
-                            title="Edit Order"
-                          >
-                            <Pencil size={15} />
-                          </button>
+                          {canUpdate && (
+                            <button
+                              type="button"
+                              onClick={() => openEditModal(ord)}
+                              className="p-2 hover:bg-slate-100 text-slate-600 rounded-xl transition cursor-pointer border border-transparent hover:border-slate-200"
+                              title="Edit Order"
+                            >
+                              <Pencil size={15} />
+                            </button>
+                          )}
 
-                          {/* 3. DELETE / REMOVE BUTTON */}
-                          <button
-                            type="button"
-                            onClick={() => setDeleteOrderId(ord._id)}
-                            className="p-2 hover:bg-rose-50 text-rose-600 rounded-xl transition cursor-pointer border border-transparent hover:border-rose-100"
-                            title="Delete Order"
-                          >
-                            <Trash2 size={15} />
-                          </button>
+                          {canDelete && (
+                            <button
+                              type="button"
+                              onClick={() => setDeleteOrderId(ord._id)}
+                              className="p-2 hover:bg-rose-50 text-rose-600 rounded-xl transition cursor-pointer border border-transparent hover:border-rose-100"
+                              title="Delete Order"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

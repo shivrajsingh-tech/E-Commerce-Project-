@@ -166,7 +166,7 @@ const AdminDashboard = () => {
       {(rawRole === "super_admin" || rawRole === "admin") && <SuperAdminDashboardView d={dashboard} />}
       {rawRole === "delivery_partner" && <DeliveryPartnerDashboardView d={dashboard.deliveryPartnerStats || dashboard} />}
       {rawRole === "store_manager" && <StoreManagerDashboardView d={dashboard} />}
-      {(rawRole === "inventory_manager" || rawRole === "inventary_manager") && <InventoryManagerDashboardView d={dashboard} />}
+      {rawRole === "inventory_manager" && <InventoryManagerDashboardView d={dashboard} />}
       {rawRole === "delivery_manager" && <DeliveryManagerDashboardView d={dashboard} />}
     </div>
   );
@@ -185,6 +185,7 @@ const SuperAdminDashboardView = ({ d }) => {
   const orderPipeline = useMemo(() => [
     { stage: "Placed", count: d.placedOrders || 0, fill: "#F59E0B" },
     { stage: "Confirmed", count: d.confirmedOrders || 0, fill: "#8B5CF6" },
+    { stage: "Packing", count: d.packingOrders || 0, fill: "#EC4899" },
     { stage: "Assigned", count: d.assignedOrders || 0, fill: "#6366F1" },
     { stage: "Out For Delivery", count: d.outForDelivery || 0, fill: "#06B6D4" },
     { stage: "Delivered", count: d.todayDelivered || 0, fill: "#10B981" },
@@ -400,16 +401,6 @@ const SuperAdminDashboardView = ({ d }) => {
 const DeliveryPartnerDashboardView = ({ d }) => {
   const activeTasks = d.activeTasks || [];
 
-  const weeklyDeliveryTrend = useMemo(() => [
-    { day: "Mon", deliveries: Math.max(0, (d.deliveredWeek || 7) - 6) },
-    { day: "Tue", deliveries: Math.max(0, (d.deliveredWeek || 7) - 4) },
-    { day: "Wed", deliveries: Math.max(0, (d.deliveredWeek || 7) - 5) },
-    { day: "Thu", deliveries: Math.max(0, (d.deliveredWeek || 7) - 3) },
-    { day: "Fri", deliveries: Math.max(0, (d.deliveredWeek || 7) - 2) },
-    { day: "Sat", deliveries: Math.max(0, (d.deliveredWeek || 7) - 1) },
-    { day: "Today", deliveries: d.deliveredToday || 0 },
-  ], [d]);
-
   const completionDonut = useMemo(() => [
     { name: "Delivered (All Time)", value: d.deliveredTotalAllTime || 0, fill: "#10B981" },
     { name: "Active Now", value: activeTasks.length, fill: "#6366F1" },
@@ -450,33 +441,24 @@ const DeliveryPartnerDashboardView = ({ d }) => {
         />
       </div>
 
-      {/* WEEKLY AREA CURVE + TASK DONUT */}
+      {/* WEEKLY DELIVERIES STAT + TASK DONUT */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white p-7 rounded-[32px] border border-slate-200/80 shadow-sm">
+        <div className="lg:col-span-2 bg-white p-7 rounded-[32px] border border-slate-200/80 shadow-sm flex flex-col justify-center">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-sm font-black text-slate-900 uppercase tracking-wider">Weekly Delivery Trajectory</h2>
-              <p className="text-xs text-slate-400 mt-0.5">Completed drop-offs across rolling 7 days</p>
+              <h2 className="text-sm font-black text-slate-900 uppercase tracking-wider">Weekly Delivery Summary</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Total confirmed drop-offs across the last 7 days</p>
             </div>
             <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-[11px] font-black uppercase">
               Rider Performance
             </span>
           </div>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={weeklyDeliveryTrend}>
-                <defs>
-                  <linearGradient id="riderGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10B981" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="day" stroke="#94A3B8" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#94A3B8" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
-                <Tooltip content={<ModernTooltip suffix=" drops" />} />
-                <Area type="monotone" dataKey="deliveries" stroke="#10B981" strokeWidth={3} fillOpacity={1} fill="url(#riderGrad)" />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className="flex items-center justify-center py-10">
+            <div className="text-center">
+              <p className="text-[11px] uppercase font-bold text-slate-400 tracking-widest mb-2">This Week</p>
+              <p className="text-6xl font-black text-emerald-600">{d.deliveredWeek ?? 0}</p>
+              <p className="text-sm text-slate-500 font-semibold mt-2">Deliveries Completed</p>
+            </div>
           </div>
         </div>
 
@@ -525,16 +507,16 @@ const DeliveryPartnerDashboardView = ({ d }) => {
         </div>
       </div>
 
-      {/* RIDER PERFORMANCE & TRIP METRICS */}
+      {/* RIDER PERFORMANCE STATS */}
       <div className="bg-white p-6 rounded-[28px] border border-slate-200/80 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-100 flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold">
             <CheckCircle size={22} />
           </div>
           <div>
-            <p className="text-[10px] uppercase font-bold text-indigo-500">OTP Verification</p>
-            <p className="text-xl font-black text-slate-900">100% Secure</p>
-            <p className="text-[11px] text-slate-500 mt-0.5">Strict OTP delivery protocol</p>
+            <p className="text-[10px] uppercase font-bold text-indigo-500">Delivered (All Time)</p>
+            <p className="text-xl font-black text-slate-900">{d.deliveredTotalAllTime ?? 0}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Total confirmed drop-offs</p>
           </div>
         </div>
 
@@ -543,9 +525,9 @@ const DeliveryPartnerDashboardView = ({ d }) => {
             <IndianRupee size={22} />
           </div>
           <div>
-            <p className="text-[10px] uppercase font-bold text-emerald-600">Base Pay Rate</p>
-            <p className="text-xl font-black text-slate-900">₹40 / Drop</p>
-            <p className="text-[11px] text-slate-500 mt-0.5">Direct payout per confirmed trip</p>
+            <p className="text-[10px] uppercase font-bold text-emerald-600">Total Earnings</p>
+            <p className="text-xl font-black text-slate-900">₹{(d.totalEarningsAllTime || 0).toLocaleString("en-IN")}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Lifetime payout</p>
           </div>
         </div>
 
@@ -554,9 +536,9 @@ const DeliveryPartnerDashboardView = ({ d }) => {
             <Clock size={22} />
           </div>
           <div>
-            <p className="text-[10px] uppercase font-bold text-amber-600">Estimated Target</p>
-            <p className="text-xl font-black text-slate-900">25 Mins / Drop</p>
-            <p className="text-[11px] text-slate-500 mt-0.5">Average dispatch to door SLA</p>
+            <p className="text-[10px] uppercase font-bold text-amber-600">Deliveries This Month</p>
+            <p className="text-xl font-black text-slate-900">{d.deliveredMonth ?? 0}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Completed drops this month</p>
           </div>
         </div>
       </div>
@@ -625,6 +607,7 @@ const StoreManagerDashboardView = ({ d }) => {
   const storePipeline = useMemo(() => [
     { name: "Placed", value: d.placedOrders || 0, fill: "#F59E0B" },
     { name: "Confirmed", value: d.confirmedOrders || 0, fill: "#8B5CF6" },
+    { name: "Packing", value: d.packingOrders || 0, fill: "#EC4899" },
     { name: "Assigned", value: d.assignedOrders || 0, fill: "#6366F1" },
     { name: "Out For Delivery", value: d.outForDelivery || 0, fill: "#06B6D4" },
     { name: "Delivered (Today)", value: d.todayDelivered || 0, fill: "#10B981" },

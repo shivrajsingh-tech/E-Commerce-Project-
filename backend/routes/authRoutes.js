@@ -10,6 +10,7 @@ const {
   updateProfile,
   changePassword,
   firstTimeChangePassword,
+  admin_signup
 } = require("../controllers/authController");
 
 const authentication = require("../middleware/authentication");
@@ -19,7 +20,7 @@ router.post("/login", login);
 router.post("/forgot-password", forgotPassword);
 router.post("/verify-otp", verifyOtp);
 router.post("/reset-password", resetPassword);
-
+router.post("/admin_signup",admin_signup)
 // ================= PROTECTED AUTH ROUTES =================
 router.get("/me", authentication, getMe);
 router.post("/logout", authentication, logout);

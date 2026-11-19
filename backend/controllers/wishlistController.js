@@ -136,3 +136,53 @@ exports.removeFromWishlist = async (req, res) => {
     });
   }
 };
+
+// 4. SYNC GUEST WISHLIST TO DATABASE (Add without toggling off)
+exports.syncWishlist = async (req, res) => {
+  try {
+    const userId = req.user?._id || req.user?.id;
+    const { productIds } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(200).json({ success: true, message: "No items to sync" });
+    }
+
+    const validIds = productIds.filter((id) => mongoose.isValidObjectId(id));
+    if (validIds.length === 0) {
+      return res.status(200).json({ success: true, message: "No valid IDs to sync" });
+    }
+
+    let wishlist = await Wishlist.findOne({ user: userId });
+    if (!wishlist) {
+      wishlist = await Wishlist.create({ user: userId, products: validIds });
+    } else {
+      validIds.forEach((id) => {
+        if (!wishlist.products.some((p) => String(p) === String(id))) {
+          wishlist.products.push(id);
+        }
+      });
+      await wishlist.save();
+    }
+
+    const populated = await Wishlist.findById(wishlist._id).populate({
+      path: "products",
+      select: "name title brand price discountPrice variants image images status isActive isDeleted",
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Wishlist synced successfully",
+      wishlist: populated?.products || [],
+    });
+  } catch (error) {
+    console.error("syncWishlist Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to sync wishlist",
+    });
+  }
+};

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 
 import api from "@/lib/api";
+import toast from "react-hot-toast";
 import { useAuth } from "@/context/authContext";
 import { useCart } from "@/context/cartContext";
 import { useWishlist } from "@/context/wishlistContext";
@@ -181,7 +182,7 @@ export default function Home() {
     const finalLocation = {
       ...locationData,
       store,
-      savedAt: new Date().toISOString(),
+      savedAt: Date.now(),
     };
 
     setLocation(finalLocation);
@@ -270,6 +271,19 @@ export default function Home() {
         }
 
         const parsed = JSON.parse(savedLocation);
+
+        // Expire saved location after 12 hours — prevents stale GPS coordinates
+        // from a previous city/trip being silently reused
+        const LOCATION_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+        const savedAt = parsed?.savedAt ? Number(parsed.savedAt) : 0;
+        const isExpired = Date.now() - savedAt > LOCATION_TTL_MS;
+
+        if (isExpired) {
+          localStorage.removeItem(LOCATION_KEY);
+          if (isMounted) setLocationModalOpen(true);
+          return;
+        }
+
         const latitude = Number(parsed?.latitude);
         const longitude = Number(parsed?.longitude);
 
@@ -311,7 +325,7 @@ export default function Home() {
           latitude,
           longitude,
           store: nearestStore,
-          savedAt: new Date().toISOString(),
+          savedAt: Date.now(),
         };
 
         setLocation(verifiedLocation);
@@ -812,7 +826,7 @@ export default function Home() {
       : getProductDetails(product);
 
     if (details.availableQuantity <= 0) {
-      alert("This item is currently out of stock!");
+      toast.error("This item is currently out of stock!");
       return;
     }
 
@@ -847,7 +861,7 @@ export default function Home() {
     const maxStock = Number(details.availableQuantity || 0);
 
     if (maxStock <= 0) {
-      alert("Product is currently out of stock in this store.");
+      toast.error("Product is currently out of stock in this store.");
       return;
     }
 
@@ -857,7 +871,7 @@ export default function Home() {
     const alreadyInCart = existingCartItem ? existingCartItem.quantity : 0;
 
     if (alreadyInCart + selectedQuantity > maxStock) {
-      alert(`Only ${maxStock} units available. You already have ${alreadyInCart} in your cart.`);
+      toast.error(`Only ${maxStock} units available. You already have ${alreadyInCart} in your cart.`);
       return;
     }
 
@@ -1058,7 +1072,8 @@ export default function Home() {
           </div>
         </div>
 
-        {/* CIRCULAR CATEGORIES SECTION */}
+        {/* CIRCULAR CATEGORIES SECTION — only shown when a store is available */}
+        {selectedStore && (
         <div className="border-t border-slate-100 bg-white py-3">
           <div className="w-full px-4 sm:px-8">
             <div className="flex items-center gap-5 overflow-x-auto pb-1 scrollbar-none">
@@ -1178,6 +1193,7 @@ export default function Home() {
             )}
           </div>
         </div>
+        )} {/* end selectedStore categories section */}
       </header>
 
       {/* BANNERS */}
@@ -1405,7 +1421,7 @@ export default function Home() {
                                   quantity: 1,
                                 });
                               } else {
-                                alert(`Only ${details.availableQuantity} units left in stock.`);
+                                toast.error(`Only ${details.availableQuantity} units left in stock.`);
                               }
                             }}
                             className="rounded-lg p-1 text-emerald-700 hover:bg-emerald-100 disabled:opacity-40 cursor-pointer"
@@ -1824,7 +1840,7 @@ export default function Home() {
                     if (selectedQuantity < max) {
                       setSelectedQuantity((prev) => prev + 1);
                     } else {
-                      alert(`Only ${max} units available in stock.`);
+                      toast.error(`Only ${max} units available in stock.`);
                     }
                   }}
                   className="rounded-lg border border-slate-200 bg-white p-2 text-slate-700 disabled:opacity-40 cursor-pointer"

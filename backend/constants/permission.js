@@ -36,7 +36,7 @@ const permissions = {
   VARIANTS_CREATE: "variants.create",
   VARIANTS_UPDATE: "variants.update",
   VARIANTS_DELETE: "variants.delete",
-
+  VARIENTS_STATUS_CHANGE:"varients.status_change",
   // CATEGORIES
   CATEGORIES_VIEW: "categories.view",
   CATEGORIES_CREATE: "categories.create",

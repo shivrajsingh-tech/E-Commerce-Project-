@@ -71,6 +71,12 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // UI Theme preference
+    theme: {
+      type: String,
+      enum: ["light", "dark"],
+      default: "light",
+    },
     // Delivery logistics
     isOnline: {
       type: Boolean,
