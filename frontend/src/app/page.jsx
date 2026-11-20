@@ -1193,7 +1193,6 @@ export default function Home() {
             )}
           </div>
         </div>
-        </div>
         )} {/* end selectedStore categories section */}
       </header>
 
