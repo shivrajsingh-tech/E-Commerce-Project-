@@ -15,10 +15,25 @@ app.use(express.urlencoded({ extended: true }));
 // 2. Cookie Parser (Sabhi routes se pehle hona zaroori hai)
 app.use(cookieParser());
 
-// 3. CORS Configuration (Next.js aur Vite dono ke liye)
+// 3. CORS Configuration
+const allowedOrigins = [
+  "http://localhost:5173",   // admin dev
+  "http://localhost:3000",   // frontend dev
+  // Production — update these with your actual Vercel URLs
+  process.env.ADMIN_URL,
+  process.env.FRONTEND_URL,
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://localhost:3000"],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, Render health checks)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      // Allow any vercel.app subdomain for previews
+      if (/\.vercel\.app$/.test(origin)) return callback(null, true);
+      return callback(new Error(`CORS blocked: ${origin}`));
+    },
     credentials: true,
   })
 );
